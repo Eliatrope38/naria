@@ -97,15 +97,13 @@ gosec:
   script:
     - gosec -exclude-generated -exclude-dir='(^|/)\.go/' -quiet ./...
 
-# SAST semgrep (Go, OWASP Top 10, workflows GitHub Actions), bloquant. The rules and
-# exclusions live in scripts/semgrep.sh, shared with the pre-commit and pre-push hooks.
 semgrep:
-  stage: test
-  image:
-    name: semgrep/semgrep:1.180.0
-    entrypoint: [""]
-  script:
-    - sh scripts/semgrep.sh
+  image: semgrep/semgrep
+  script: semgrep ci
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "web" 
+  - if: $CI_MERGE_REQUEST_IID 
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Build de l'image et push dans le Container Registry GitLab (Kaniko, sans dind).
 # Uniquement sur les tags : :<tag>, :latest et :<sha>
