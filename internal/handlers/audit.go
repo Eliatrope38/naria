@@ -41,6 +41,8 @@ const (
 	auditOrgAdminReplaced       = "org.admin_replaced"
 	auditReadGranted            = "site.read_granted"
 	auditReadRevoked            = "site.read_revoked"
+	auditSenderBlocked          = "site.sender_blocked"
+	auditSenderUnblocked        = "site.sender_unblocked"
 )
 
 const (

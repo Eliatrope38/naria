@@ -66,6 +66,9 @@ type SiteVM struct {
 	APIBase  string // API address (BASE_URL + /api/v1)
 	NewToken string // token just created, shown only once
 	TokenErr string
+
+	Blocked  []database.SiteBlockedSender
+	BlockErr string
 }
 
 // Lifetimes offered when creating an API token, in days. 0: no expiry.

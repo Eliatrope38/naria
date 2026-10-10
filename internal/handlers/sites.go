@@ -156,6 +156,11 @@ func (a *App) renderSite(w http.ResponseWriter, r *http.Request, site database.G
 	// A reader sees the forms and their submissions, not the tokens, which act for their creator.
 	if site.CanWrite {
 		vm.Tokens = tokens
+		vm.Blocked, err = a.Q.ListBlockedSenders(r.Context(), site.ID)
+		if err != nil {
+			http.Error(w, tr(r, "common.err.load"), http.StatusInternalServerError)
+			return
+		}
 	}
 	if u.Role == auth.RoleOrgAdmin {
 		vm.Owners, _ = a.Q.ListActiveOrgUsers(r.Context(), u.OrgID)

@@ -312,6 +312,8 @@ func buildRouter(app *handlers.App, cfg config.Config, staticFS fs.FS) http.Hand
 			r.Post("/sites/{id}/delete", app.DeleteSite)
 			r.Post("/sites/{id}/tokens", app.CreateAPIToken)
 			r.Post("/sites/{id}/tokens/{token}/delete", app.RevokeAPIToken)
+			r.Post("/sites/{id}/blocked", app.BlockSender)
+			r.Post("/sites/{id}/blocked/{entry}/delete", app.UnblockSender)
 			r.Post("/sites/{id}/owner", app.SetSiteOwner)
 			r.Post("/sites/{id}/readers", app.GrantSiteRead)
 			r.Post("/sites/{id}/readers/{user}/delete", app.RevokeSiteRead)

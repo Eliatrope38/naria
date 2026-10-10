@@ -96,6 +96,13 @@ type Site struct {
 	UpdatedAt time.Time
 }
 
+type SiteBlockedSender struct {
+	ID        uuid.UUID
+	SiteID    uuid.UUID
+	Value     string
+	CreatedAt time.Time
+}
+
 type SiteReadGrant struct {
 	SiteID    uuid.UUID
 	UserID    uuid.UUID

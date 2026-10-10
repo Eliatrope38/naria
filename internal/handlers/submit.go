@@ -183,6 +183,18 @@ func (a *App) Submit(w http.ResponseWriter, r *http.Request) {
 		a.submitOK(w, r, *form, meta)
 		return
 	}
+	// A blocked sender gets the success of any other visitor. Nothing is stored,
+	// sent or scanned for it.
+	blocked, err := a.senderBlocked(r.Context(), form.SiteID, meta, data)
+	if err != nil {
+		log.Printf("ERROR soumission: lecture des expéditeurs bloqués formulaire=%s: %v", form.ID, err)
+		a.submitFail(w, r, http.StatusInternalServerError, "submit.err.internal")
+		return
+	}
+	if blocked {
+		a.submitOK(w, r, *form, meta)
+		return
+	}
 
 	if status, errKey := a.scanFiles(r.Context(), form.ID, files); errKey != "" {
 		if status == http.StatusServiceUnavailable {

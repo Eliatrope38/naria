@@ -306,6 +306,53 @@ templ SitePage(vm SiteVM) {
 		</div>
 		}
 		if vm.Site.CanWrite {
+		<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.blocked.heading") }</h2>
+		<div class="service-card" style="margin-bottom:20px">
+			<p class="muted" style="font-size:.88rem;margin:0 0 14px">{ T(ctx, "site.blocked.intro") }</p>
+			if vm.BlockErr != "" {
+				<p role="alert" class="alert alert--error">{ vm.BlockErr }</p>
+			}
+			if len(vm.Blocked) == 0 {
+				<p class="muted" style="font-size:.88rem;margin:0 0 18px">{ T(ctx, "site.blocked.empty") }</p>
+			} else {
+				<div class="table-scroll" style="margin-bottom:18px">
+					<table class="specs-table m-0">
+						<thead>
+							<tr>
+								<th scope="col">{ T(ctx, "site.blocked.col.value") }</th>
+								<th scope="col" style="width:120px">{ T(ctx, "site.blocked.col.added") }</th>
+								<th scope="col" style="width:130px"><span class="muted visually-hidden">{ T(ctx, "common.actions") }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, b := range vm.Blocked {
+								<tr>
+									<td class="mono ink">{ b.Value }</td>
+									<td class="muted">{ fmtDate(b.CreatedAt) }</td>
+									<td>
+										<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/blocked/" + b.ID.String() + "/delete") } data-confirm={ T(ctx, "site.blocked.remove_confirm", b.Value) }>
+											<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+											<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "site.blocked.remove_btn") }</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/blocked") } style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<label style="flex:1;min-width:220px">
+					<span class="field-label">{ T(ctx, "site.blocked.value_label") }</span>
+					<input type="text" name="value" required maxlength="255" class="input" aria-describedby="site-blocked-help"/>
+				</label>
+				<button type="submit" class="btn btn--ghost">{ T(ctx, "site.blocked.add_btn") }</button>
+			</form>
+			<p id="site-blocked-help" class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.blocked.help") }</p>
+		</div>
+		}
+		if vm.Site.CanWrite {
 		<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.settings_heading") }</h2>
 		<div class="service-card" style="margin-bottom:20px">
 			if vm.ErrMsg != "" {
