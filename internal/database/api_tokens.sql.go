@@ -82,11 +82,12 @@ SELECT t.id, t.name, t.user_id, u.email AS user_email,
        s.id AS site_id, s.name AS site_name, s.domains AS site_domains
 FROM api_tokens t
 JOIN sites s ON s.id = t.site_id
+JOIN users o ON o.id = s.owner_id
 JOIN users u ON u.id = t.user_id
 WHERE t.token_hash = $1
   AND (t.expires_at IS NULL OR t.expires_at > now())
   AND u.active
-  AND (u.role = 'admin' OR s.owner_id = u.id)
+  AND (s.owner_id = u.id OR (u.role = 'admin_orga' AND o.org_id = u.org_id))
 `
 
 type GetAPITokenByHashRow struct {
@@ -99,10 +100,11 @@ type GetAPITokenByHashRow struct {
 	SiteDomains []string
 }
 
-// GetAPITokenByHash authentifie un appel d'API. Même règle de cloisonnement que
-// sites.sql, appliquée au créateur du jeton : le jeton n'ouvre le site que si
-// ce compte est actif et y a encore accès. Un jeton échu, ou dont le créateur a
-// perdu le site, est introuvable.
+// GetAPITokenByHash authentifie un appel d'API. Un jeton crée des formulaires, donc
+// il vaut par l'écriture du créateur (propriétaire du site, ou administrateur de
+// l'organisation du propriétaire), et non par la lecture. Ce droit est vérifié à
+// chaque appel : un jeton échu, ou dont le créateur n'écrit plus le site, est
+// introuvable.
 func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (GetAPITokenByHashRow, error) {
 	row := q.db.QueryRow(ctx, getAPITokenByHash, tokenHash)
 	var i GetAPITokenByHashRow
@@ -120,9 +122,10 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (GetA
 
 const listAPITokensBySite = `-- name: ListAPITokensBySite :many
 SELECT t.id, t.name, t.expires_at, t.last_used_at, t.created_at, u.name AS user_name,
-       (u.active AND (u.role = 'admin' OR s.owner_id = u.id))::bool AS has_access
+       coalesce(u.active AND (s.owner_id = u.id OR (u.role = 'admin_orga' AND o.org_id = u.org_id)), false)::bool AS has_access
 FROM api_tokens t
 JOIN sites s ON s.id = t.site_id
+JOIN users o ON o.id = s.owner_id
 JOIN users u ON u.id = t.user_id
 WHERE t.site_id = $1
 ORDER BY t.created_at
@@ -139,7 +142,7 @@ type ListAPITokensBySiteRow struct {
 }
 
 // has_access reprend ce que GetAPITokenByHash exige du créateur (compte actif,
-// accès au site) : la page du site signale ainsi un jeton qu'il ne peut plus
+// écriture du site) : la page du site signale ainsi un jeton qu'il ne peut plus
 // faire valoir. L'échéance n'y entre pas, la page l'affiche à part.
 func (q *Queries) ListAPITokensBySite(ctx context.Context, siteID uuid.UUID) ([]ListAPITokensBySiteRow, error) {
 	rows, err := q.db.Query(ctx, listAPITokensBySite, siteID)

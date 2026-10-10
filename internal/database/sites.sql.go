@@ -10,24 +10,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countSitesScoped = `-- name: CountSitesScoped :one
 SELECT count(*) FROM sites s
-WHERE ($1::bool OR s.owner_id = $2)
+JOIN users u ON u.id = s.owner_id
+WHERE (s.owner_id = $1
+       OR u.org_id = $2::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = $1))
   AND ($3::text IS NULL
        OR s.name ILIKE '%' || $3 || '%'
        OR array_to_string(s.domains, ' ') ILIKE '%' || $3 || '%')
 `
 
 type CountSitesScopedParams struct {
-	IsAdmin  bool
-	ViewerID uuid.UUID
-	Search   *string
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+	Search     *string
 }
 
 func (q *Queries) CountSitesScoped(ctx context.Context, arg CountSitesScopedParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSitesScoped, arg.IsAdmin, arg.ViewerID, arg.Search)
+	row := q.db.QueryRow(ctx, countSitesScoped, arg.ViewerID, arg.AdminOrgID, arg.Search)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -59,49 +63,76 @@ func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, e
 	return i, err
 }
 
+const deleteSiteReadGrant = `-- name: DeleteSiteReadGrant :exec
+DELETE FROM site_read_grants WHERE site_id = $1 AND user_id = $2
+`
+
+type DeleteSiteReadGrantParams struct {
+	SiteID uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteSiteReadGrant(ctx context.Context, arg DeleteSiteReadGrantParams) error {
+	_, err := q.db.Exec(ctx, deleteSiteReadGrant, arg.SiteID, arg.UserID)
+	return err
+}
+
 const deleteSiteScoped = `-- name: DeleteSiteScoped :execrows
 DELETE FROM sites
-WHERE id = $1
-  AND ($2::bool OR owner_id = $3)
+WHERE sites.id = $1
+  AND (sites.owner_id = $2
+       OR sites.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid))
 `
 
 type DeleteSiteScopedParams struct {
-	ID       uuid.UUID
-	IsAdmin  bool
-	ViewerID uuid.UUID
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
 func (q *Queries) DeleteSiteScoped(ctx context.Context, arg DeleteSiteScopedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteSiteScoped, arg.ID, arg.IsAdmin, arg.ViewerID)
+	result, err := q.db.Exec(ctx, deleteSiteScoped, arg.ID, arg.ViewerID, arg.AdminOrgID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const getSiteOwnerEmail = `-- name: GetSiteOwnerEmail :one
-SELECT u.email FROM sites s JOIN users u ON u.id = s.owner_id WHERE s.id = $1
+const getSiteAlertEmails = `-- name: GetSiteAlertEmails :one
+SELECT ow.email AS owner_email, adm.email AS admin_email
+FROM sites s
+JOIN users ow ON ow.id = s.owner_id
+LEFT JOIN users adm ON adm.org_id = ow.org_id AND adm.role = 'admin_orga' AND adm.active AND adm.id <> ow.id
+WHERE s.id = $1
 `
 
-func (q *Queries) GetSiteOwnerEmail(ctx context.Context, id uuid.UUID) (string, error) {
-	row := q.db.QueryRow(ctx, getSiteOwnerEmail, id)
-	var email string
-	err := row.Scan(&email)
-	return email, err
+type GetSiteAlertEmailsRow struct {
+	OwnerEmail string
+	AdminEmail *string
+}
+
+func (q *Queries) GetSiteAlertEmails(ctx context.Context, id uuid.UUID) (GetSiteAlertEmailsRow, error) {
+	row := q.db.QueryRow(ctx, getSiteAlertEmails, id)
+	var i GetSiteAlertEmailsRow
+	err := row.Scan(&i.OwnerEmail, &i.AdminEmail)
+	return i, err
 }
 
 const getSiteScoped = `-- name: GetSiteScoped :one
-SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, u.name AS owner_name
+SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, u.name AS owner_name,
+       coalesce(s.owner_id = $1 OR u.org_id = $2::uuid, false)::bool AS can_write
 FROM sites s
 JOIN users u ON u.id = s.owner_id
-WHERE s.id = $1
-  AND ($2::bool OR s.owner_id = $3)
+WHERE s.id = $3
+  AND (s.owner_id = $1
+       OR u.org_id = $2::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = $1))
 `
 
 type GetSiteScopedParams struct {
-	ID       uuid.UUID
-	IsAdmin  bool
-	ViewerID uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+	ID         uuid.UUID
 }
 
 type GetSiteScopedRow struct {
@@ -112,13 +143,16 @@ type GetSiteScopedRow struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	OwnerName string
+	CanWrite  bool
 }
 
 // Cloisonnement : toute lecture ou écriture d'un site porte le périmètre du
-// demandeur (viewer_id / is_admin) dans la requête. Un membre ne voit que les
-// sites dont il est propriétaire ; un administrateur les voit tous.
+// demandeur (viewer_id, et admin_org_id s'il administre une organisation) dans la
+// requête. Lire : le propriétaire, l'administrateur de l'organisation du
+// propriétaire, ou un compte à qui cette organisation a accordé la lecture. Écrire :
+// les deux premiers seulement, une lecture n'ouvre aucune écriture.
 func (q *Queries) GetSiteScoped(ctx context.Context, arg GetSiteScopedParams) (GetSiteScopedRow, error) {
-	row := q.db.QueryRow(ctx, getSiteScoped, arg.ID, arg.IsAdmin, arg.ViewerID)
+	row := q.db.QueryRow(ctx, getSiteScoped, arg.ViewerID, arg.AdminOrgID, arg.ID)
 	var i GetSiteScopedRow
 	err := row.Scan(
 		&i.ID,
@@ -128,28 +162,155 @@ func (q *Queries) GetSiteScoped(ctx context.Context, arg GetSiteScopedParams) (G
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OwnerName,
+		&i.CanWrite,
 	)
 	return i, err
 }
 
-const listSitesScoped = `-- name: ListSitesScoped :many
-SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, u.name AS owner_name,
-       (SELECT count(*) FROM forms f WHERE f.site_id = s.id) AS form_count,
-       (SELECT count(*) FROM submissions sub JOIN forms f ON f.id = sub.form_id
-         WHERE f.site_id = s.id AND sub.read_at IS NULL) AS unread_count
+const grantSiteRead = `-- name: GrantSiteRead :execrows
+INSERT INTO site_read_grants (site_id, user_id, granted_by)
+SELECT s.id, g.id, $1
 FROM sites s
-JOIN users u ON u.id = s.owner_id
-WHERE ($1::bool OR s.owner_id = $2)
-  AND ($3::text IS NULL
-       OR s.name ILIKE '%' || $3 || '%'
-       OR array_to_string(s.domains, ' ') ILIKE '%' || $3 || '%')
-ORDER BY s.name
-LIMIT $5 OFFSET $4
+JOIN users o ON o.id = s.owner_id
+JOIN users g ON g.id = $2
+WHERE s.id = $3
+  AND o.org_id = $4
+  AND g.org_id = $4
+  AND g.role = 'user' AND g.active
+  AND s.owner_id <> g.id
+ON CONFLICT DO NOTHING
+`
+
+type GrantSiteReadParams struct {
+	GrantedBy  pgtype.UUID
+	UserID     uuid.UUID
+	SiteID     uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+// Lecture accordée par l'administrateur de l'organisation du site. Le destinataire
+// doit être un compte actif de la même organisation, de rôle user, et pas le
+// propriétaire. Zéro ligne signifie refus ou lecture déjà accordée.
+func (q *Queries) GrantSiteRead(ctx context.Context, arg GrantSiteReadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, grantSiteRead,
+		arg.GrantedBy,
+		arg.UserID,
+		arg.SiteID,
+		arg.AdminOrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listGrantableUsers = `-- name: ListGrantableUsers :many
+SELECT id, name, email FROM users
+WHERE org_id = $1 AND role = 'user' AND active
+  AND id <> $2
+ORDER BY name
+`
+
+type ListGrantableUsersParams struct {
+	OrgID   pgtype.UUID
+	OwnerID uuid.UUID
+}
+
+type ListGrantableUsersRow struct {
+	ID    uuid.UUID
+	Name  string
+	Email string
+}
+
+// Comptes auxquels accorder la lecture d'un site : les comptes user actifs de
+// l'organisation, sauf le propriétaire.
+func (q *Queries) ListGrantableUsers(ctx context.Context, arg ListGrantableUsersParams) ([]ListGrantableUsersRow, error) {
+	rows, err := q.db.Query(ctx, listGrantableUsers, arg.OrgID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGrantableUsersRow
+	for rows.Next() {
+		var i ListGrantableUsersRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSiteReadGrants = `-- name: ListSiteReadGrants :many
+SELECT u.id, u.name, u.email
+FROM site_read_grants g
+JOIN users u ON u.id = g.user_id
+WHERE g.site_id = $1
+  AND EXISTS (SELECT 1 FROM sites s
+              JOIN users o ON o.id = s.owner_id
+              WHERE s.id = g.site_id AND o.org_id = $2)
+ORDER BY u.name
+`
+
+type ListSiteReadGrantsParams struct {
+	SiteID     uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+type ListSiteReadGrantsRow struct {
+	ID    uuid.UUID
+	Name  string
+	Email string
+}
+
+func (q *Queries) ListSiteReadGrants(ctx context.Context, arg ListSiteReadGrantsParams) ([]ListSiteReadGrantsRow, error) {
+	rows, err := q.db.Query(ctx, listSiteReadGrants, arg.SiteID, arg.AdminOrgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSiteReadGrantsRow
+	for rows.Next() {
+		var i ListSiteReadGrantsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSitesScoped = `-- name: ListSitesScoped :many
+SELECT p.id, p.owner_id, p.name, p.domains, p.created_at, p.updated_at, p.owner_name, p.can_write,
+       (SELECT count(*) FROM forms f WHERE f.site_id = p.id) AS form_count,
+       (SELECT count(*) FROM submissions sub JOIN forms f ON f.id = sub.form_id
+         WHERE f.site_id = p.id AND sub.read_at IS NULL) AS unread_count
+FROM (
+    SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, u.name AS owner_name,
+           coalesce(s.owner_id = $1 OR u.org_id = $2::uuid, false)::bool AS can_write
+    FROM sites s
+    JOIN users u ON u.id = s.owner_id
+    WHERE (s.owner_id = $1
+           OR u.org_id = $2::uuid
+           OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = $1))
+      AND ($3::text IS NULL
+           OR s.name ILIKE '%' || $3 || '%'
+           OR array_to_string(s.domains, ' ') ILIKE '%' || $3 || '%')
+    ORDER BY s.name, s.id
+    LIMIT $5 OFFSET $4
+) p
+ORDER BY p.name, p.id
 `
 
 type ListSitesScopedParams struct {
-	IsAdmin    bool
 	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 	Search     *string
 	PageOffset int32
 	PageLimit  int32
@@ -163,14 +324,17 @@ type ListSitesScopedRow struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	OwnerName   string
+	CanWrite    bool
 	FormCount   int64
 	UnreadCount int64
 }
 
+// La pagination précède le calcul des compteurs : ils ne sont faits que pour les
+// sites de la page, même pour un administrateur d'organisation qui en gère beaucoup.
 func (q *Queries) ListSitesScoped(ctx context.Context, arg ListSitesScopedParams) ([]ListSitesScopedRow, error) {
 	rows, err := q.db.Query(ctx, listSitesScoped,
-		arg.IsAdmin,
 		arg.ViewerID,
+		arg.AdminOrgID,
 		arg.Search,
 		arg.PageOffset,
 		arg.PageLimit,
@@ -190,6 +354,7 @@ func (q *Queries) ListSitesScoped(ctx context.Context, arg ListSitesScopedParams
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OwnerName,
+			&i.CanWrite,
 			&i.FormCount,
 			&i.UnreadCount,
 		); err != nil {
@@ -203,32 +368,66 @@ func (q *Queries) ListSitesScoped(ctx context.Context, arg ListSitesScopedParams
 	return items, nil
 }
 
-const setSiteOwner = `-- name: SetSiteOwner :exec
-UPDATE sites SET owner_id = $2, updated_at = now() WHERE id = $1
+const revokeSiteRead = `-- name: RevokeSiteRead :execrows
+DELETE FROM site_read_grants g
+WHERE g.site_id = $1 AND g.user_id = $2
+  AND EXISTS (SELECT 1 FROM sites s
+              JOIN users o ON o.id = s.owner_id
+              WHERE s.id = g.site_id AND o.org_id = $3)
 `
 
-type SetSiteOwnerParams struct {
-	ID      uuid.UUID
-	OwnerID uuid.UUID
+type RevokeSiteReadParams struct {
+	SiteID     uuid.UUID
+	UserID     uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
-func (q *Queries) SetSiteOwner(ctx context.Context, arg SetSiteOwnerParams) error {
-	_, err := q.db.Exec(ctx, setSiteOwner, arg.ID, arg.OwnerID)
-	return err
+func (q *Queries) RevokeSiteRead(ctx context.Context, arg RevokeSiteReadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSiteRead, arg.SiteID, arg.UserID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const transferSiteScoped = `-- name: TransferSiteScoped :execrows
+UPDATE sites SET owner_id = $1, updated_at = now()
+WHERE sites.id = $2
+  AND sites.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid)
+  AND EXISTS (SELECT 1 FROM users n
+              WHERE n.id = $1 AND n.active
+                AND n.org_id = $3::uuid)
+`
+
+type TransferSiteScopedParams struct {
+	NewOwnerID uuid.UUID
+	ID         uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+// Transfert à un compte actif de la même organisation que l'administrateur. La
+// lecture accordée au nouveau propriétaire est retirée par la même transaction.
+func (q *Queries) TransferSiteScoped(ctx context.Context, arg TransferSiteScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, transferSiteScoped, arg.NewOwnerID, arg.ID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateSiteScoped = `-- name: UpdateSiteScoped :execrows
 UPDATE sites SET name = $1, domains = $2, updated_at = now()
-WHERE id = $3
-  AND ($4::bool OR owner_id = $5)
+WHERE sites.id = $3
+  AND (sites.owner_id = $4
+       OR sites.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $5::uuid))
 `
 
 type UpdateSiteScopedParams struct {
-	Name     string
-	Domains  []string
-	ID       uuid.UUID
-	IsAdmin  bool
-	ViewerID uuid.UUID
+	Name       string
+	Domains    []string
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
 func (q *Queries) UpdateSiteScoped(ctx context.Context, arg UpdateSiteScopedParams) (int64, error) {
@@ -236,8 +435,8 @@ func (q *Queries) UpdateSiteScoped(ctx context.Context, arg UpdateSiteScopedPara
 		arg.Name,
 		arg.Domains,
 		arg.ID,
-		arg.IsAdmin,
 		arg.ViewerID,
+		arg.AdminOrgID,
 	)
 	if err != nil {
 		return 0, err

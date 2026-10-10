@@ -33,8 +33,8 @@ const (
 	maxRecipients = 10
 )
 
-// formFor loads the form "{id}" within the user's scope.
-// Out of scope or missing, it is the same 404. It writes the response itself on failure.
+// formFor loads the form "{id}" within the user's scope, for reading. Out of scope
+// or missing, it is the same 404. It writes the response itself on failure.
 func (a *App) formFor(w http.ResponseWriter, r *http.Request) (database.GetFormScopedRow, bool) {
 	u := web.UserFrom(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -42,11 +42,24 @@ func (a *App) formFor(w http.ResponseWriter, r *http.Request) (database.GetFormS
 		http.Error(w, tr(r, "form.err.not_found"), http.StatusNotFound)
 		return database.GetFormScopedRow{}, false
 	}
-	isAdmin, viewer := scope(u)
-	form, err := a.Q.GetFormScoped(r.Context(), database.GetFormScopedParams{ID: id, IsAdmin: isAdmin, ViewerID: viewer})
+	sc := scopeOf(u)
+	form, err := a.Q.GetFormScoped(r.Context(), database.GetFormScopedParams{ID: id, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID})
 	if err != nil {
 		http.Error(w, tr(r, "form.err.not_found"), http.StatusNotFound)
 		return database.GetFormScopedRow{}, false
+	}
+	return form, true
+}
+
+// writableFormFor is formFor for a change: a reader gets the same 404.
+func (a *App) writableFormFor(w http.ResponseWriter, r *http.Request) (database.GetFormScopedRow, bool) {
+	form, ok := a.formFor(w, r)
+	if !ok {
+		return form, false
+	}
+	if !form.CanWrite {
+		http.Error(w, tr(r, "form.err.not_found"), http.StatusNotFound)
+		return form, false
 	}
 	return form, true
 }
@@ -255,7 +268,7 @@ func (a *App) sealWebhooks(s formSettings) (out sealedWebhooks, err error) {
 }
 
 func (a *App) NewForm(w http.ResponseWriter, r *http.Request) {
-	site, ok := a.siteFor(w, r)
+	site, ok := a.writableSiteFor(w, r)
 	if !ok {
 		return
 	}
@@ -279,7 +292,7 @@ func (a *App) renderNewForm(w http.ResponseWriter, r *http.Request, site databas
 
 func (a *App) CreateForm(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	site, ok := a.siteFor(w, r)
+	site, ok := a.writableSiteFor(w, r)
 	if !ok {
 		return
 	}
@@ -339,7 +352,7 @@ func (a *App) createForm(r *http.Request, actor, siteID uuid.UUID, s formSetting
 }
 
 func (a *App) FormSettings(w http.ResponseWriter, r *http.Request) {
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
@@ -378,7 +391,7 @@ func (a *App) renderFormSettings(w http.ResponseWriter, r *http.Request, form da
 
 func (a *App) UpdateForm(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
@@ -393,15 +406,18 @@ func (a *App) UpdateForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, tr(r, "common.err.internal"), http.StatusInternalServerError)
 		return
 	}
-	if err := a.Q.UpdateForm(r.Context(), database.UpdateFormParams{
-		ID: form.ID, Name: s.Name, Active: s.Active,
+	sc := scopeOf(u)
+	n, err := a.Q.UpdateFormScoped(r.Context(), database.UpdateFormScopedParams{
+		ID: form.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID,
+		Name: s.Name, Active: s.Active,
 		NotifyEmail: s.NotifyEmail, Recipients: s.Recipients, EmailIncludeContent: s.IncludeContent,
 		StoreSubmissions: s.Store, RetentionDays: s.RetentionDays, RedirectUrl: s.RedirectURL,
 		SlackWebhookUrl: hooks.Slack, TeamsWebhookUrl: hooks.Teams, DiscordWebhookUrl: hooks.Discord,
 		ChatIncludeContent: s.ChatIncludeContent,
 		TelegramBotToken:   hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
 		AcceptAttachments: s.Attachments, Captcha: s.Captcha, NotificationLang: s.NotificationLang,
-	}); err != nil {
+	})
+	if err != nil || n == 0 {
 		a.renderFormSettings(w, r, form, v, tr(r, "common.err.update"), "")
 		return
 	}
@@ -500,7 +516,7 @@ var chatLabels = map[chat.Channel]string{
 
 // TestWebhook sends a test message to the submitted channel, without saving anything.
 func (a *App) TestWebhook(w http.ResponseWriter, r *http.Request) {
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
@@ -566,7 +582,7 @@ func (a *App) TestWebhook(w http.ResponseWriter, r *http.Request) {
 // RegenerateFormKey invalidates the old key at once, which matters if a third party has taken it.
 func (a *App) RegenerateFormKey(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
@@ -575,7 +591,11 @@ func (a *App) RegenerateFormKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, tr(r, "common.err.internal"), http.StatusInternalServerError)
 		return
 	}
-	if err := a.Q.SetFormAccessKey(r.Context(), database.SetFormAccessKeyParams{ID: form.ID, AccessKey: key}); err != nil {
+	sc := scopeOf(u)
+	n, err := a.Q.SetFormAccessKeyScoped(r.Context(), database.SetFormAccessKeyScopedParams{
+		ID: form.ID, AccessKey: key, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID,
+	})
+	if err != nil || n == 0 {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}
@@ -592,11 +612,13 @@ func (a *App) RegenerateFormKey(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) DeleteForm(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
-	if err := a.Q.DeleteForm(r.Context(), form.ID); err != nil {
+	sc := scopeOf(u)
+	n, err := a.Q.DeleteFormScoped(r.Context(), database.DeleteFormScopedParams{ID: form.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID})
+	if err != nil || n == 0 {
 		web.Flash(a.Sessions, r, tr(r, "form.flash.delete_failed"))
 		http.Redirect(w, r, "/forms/"+form.ID.String()+"/settings", http.StatusSeeOther)
 		return

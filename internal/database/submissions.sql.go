@@ -52,21 +52,46 @@ func (q *Queries) CreateSubmission(ctx context.Context, arg CreateSubmissionPara
 	return i, err
 }
 
-const deleteSubmission = `-- name: DeleteSubmission :exec
-DELETE FROM submissions WHERE id = $1
+const deleteSubmissionScoped = `-- name: DeleteSubmissionScoped :execrows
+DELETE FROM submissions sub
+WHERE sub.id = $1
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = $2
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid))
 `
 
-func (q *Queries) DeleteSubmission(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteSubmission, id)
-	return err
+type DeleteSubmissionScopedParams struct {
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
-const deleteSubmissionsByForm = `-- name: DeleteSubmissionsByForm :execrows
-DELETE FROM submissions WHERE form_id = $1
+func (q *Queries) DeleteSubmissionScoped(ctx context.Context, arg DeleteSubmissionScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSubmissionScoped, arg.ID, arg.ViewerID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteSubmissionsByFormScoped = `-- name: DeleteSubmissionsByFormScoped :execrows
+DELETE FROM submissions sub
+WHERE sub.form_id = $1
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = $2
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid))
 `
 
-func (q *Queries) DeleteSubmissionsByForm(ctx context.Context, formID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteSubmissionsByForm, formID)
+type DeleteSubmissionsByFormScopedParams struct {
+	FormID     uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+func (q *Queries) DeleteSubmissionsByFormScoped(ctx context.Context, arg DeleteSubmissionsByFormScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSubmissionsByFormScoped, arg.FormID, arg.ViewerID, arg.AdminOrgID)
 	if err != nil {
 		return 0, err
 	}
@@ -103,18 +128,22 @@ func (q *Queries) FormStorageBytes(ctx context.Context, arg FormStorageBytesPara
 }
 
 const getSubmissionScoped = `-- name: GetSubmissionScoped :one
-SELECT sub.id, sub.form_id, sub.payload, sub.read_at, sub.created_at, f.name AS form_name, f.site_id, s.name AS site_name
+SELECT sub.id, sub.form_id, sub.payload, sub.read_at, sub.created_at, f.name AS form_name, f.site_id, s.name AS site_name,
+       coalesce(s.owner_id = $1 OR o.org_id = $2::uuid, false)::bool AS can_write
 FROM submissions sub
 JOIN forms f ON f.id = sub.form_id
 JOIN sites s ON s.id = f.site_id
-WHERE sub.id = $1
-  AND ($2::bool OR s.owner_id = $3)
+JOIN users o ON o.id = s.owner_id
+WHERE sub.id = $3
+  AND (s.owner_id = $1
+       OR o.org_id = $2::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = $1))
 `
 
 type GetSubmissionScopedParams struct {
-	ID       uuid.UUID
-	IsAdmin  bool
-	ViewerID uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+	ID         uuid.UUID
 }
 
 type GetSubmissionScopedRow struct {
@@ -126,10 +155,13 @@ type GetSubmissionScopedRow struct {
 	FormName  string
 	SiteID    uuid.UUID
 	SiteName  string
+	CanWrite  bool
 }
 
+// Même périmètre que forms.sql. Les écritures portent la condition d'écriture
+// (propriétaire ou administrateur de l'organisation), jamais la lecture seule.
 func (q *Queries) GetSubmissionScoped(ctx context.Context, arg GetSubmissionScopedParams) (GetSubmissionScopedRow, error) {
-	row := q.db.QueryRow(ctx, getSubmissionScoped, arg.ID, arg.IsAdmin, arg.ViewerID)
+	row := q.db.QueryRow(ctx, getSubmissionScoped, arg.ViewerID, arg.AdminOrgID, arg.ID)
 	var i GetSubmissionScopedRow
 	err := row.Scan(
 		&i.ID,
@@ -140,6 +172,7 @@ func (q *Queries) GetSubmissionScoped(ctx context.Context, arg GetSubmissionScop
 		&i.FormName,
 		&i.SiteID,
 		&i.SiteName,
+		&i.CanWrite,
 	)
 	return i, err
 }
@@ -216,22 +249,50 @@ func (q *Queries) ListSubmissionsByForm(ctx context.Context, arg ListSubmissions
 	return items, nil
 }
 
-const markFormSubmissionsRead = `-- name: MarkFormSubmissionsRead :exec
-UPDATE submissions SET read_at = now() WHERE form_id = $1 AND read_at IS NULL
+const markFormSubmissionsReadScoped = `-- name: MarkFormSubmissionsReadScoped :execrows
+UPDATE submissions sub SET read_at = now()
+WHERE sub.form_id = $1 AND sub.read_at IS NULL
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = $2
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid))
 `
 
-func (q *Queries) MarkFormSubmissionsRead(ctx context.Context, formID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markFormSubmissionsRead, formID)
-	return err
+type MarkFormSubmissionsReadScopedParams struct {
+	FormID     uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
-const markSubmissionRead = `-- name: MarkSubmissionRead :exec
-UPDATE submissions SET read_at = now() WHERE id = $1 AND read_at IS NULL
+func (q *Queries) MarkFormSubmissionsReadScoped(ctx context.Context, arg MarkFormSubmissionsReadScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markFormSubmissionsReadScoped, arg.FormID, arg.ViewerID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markSubmissionReadScoped = `-- name: MarkSubmissionReadScoped :execrows
+UPDATE submissions sub SET read_at = now()
+WHERE sub.id = $1 AND sub.read_at IS NULL
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = $2
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid))
 `
 
-func (q *Queries) MarkSubmissionRead(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markSubmissionRead, id)
-	return err
+type MarkSubmissionReadScopedParams struct {
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+func (q *Queries) MarkSubmissionReadScoped(ctx context.Context, arg MarkSubmissionReadScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markSubmissionReadScoped, arg.ID, arg.ViewerID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const purgeExpiredSubmissions = `-- name: PurgeExpiredSubmissions :execrows

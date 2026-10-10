@@ -5,7 +5,6 @@
   "nav.account": "My account",
   "nav.logout": "Sign out",
   "nav.sites": "Sites",
-
   "footer.support": "Support",
   "footer.version": "version",
   "footer.online": "online",
@@ -14,15 +13,12 @@
   "footer.open_source": "(open source project)",
   "footer.privacy": "Privacy",
   "footer.legal": "Legal notice",
-
   "lang.label": "Language",
   "lang.fr": "French",
   "lang.en": "English",
   "lang.it": "Italian",
   "lang.de": "German",
-
   "theme.toggle": "Light / dark theme",
-
   "common.optional": "(optional)",
   "common.actions": "Actions",
   "common.enabled": "Enabled",
@@ -40,7 +36,6 @@
   "size.bytes": "%d B",
   "size.kb": "%d KB",
   "size.mb": "%d.%d MB",
-
   "login.title": "Sign in",
   "login.heading": "Sign in",
   "login.email": "Email",
@@ -56,7 +51,6 @@
   "login.verify.submit": "Verify",
   "login.verify.err.bad": "Incorrect code, please try again.",
   "login.forgot_link": "Forgot your password?",
-
   "forgot.title": "Forgot password",
   "forgot.heading": "Forgot password",
   "forgot.help": "Enter your account email address. If it is known, you will receive a link to choose a new password.",
@@ -67,7 +61,6 @@
   "forgot.email.intro": "Hello %s, a password reset was requested for your account.",
   "forgot.email.note": "This link is valid for one hour and can be used once. If you did not request it, ignore this email: your password stays unchanged.",
   "forgot.email.button": "Choose a new password",
-
   "reset.title": "New password",
   "reset.heading": "New password",
   "reset.password": "New password",
@@ -77,7 +70,6 @@
   "reset.err.invalid": "This link is invalid, already used or expired.",
   "reset.request_again": "Request a new link",
   "reset.done": "Password changed. You can sign in.",
-
   "account.title": "My account",
   "account.heading": "My account",
   "account.name": "Name",
@@ -113,7 +105,6 @@
   "account.err.enable": "Activation error",
   "account.err.codes_gen": "Backup code generation error",
   "account.err.disable": "Disable error",
-
   "codes.title": "Backup codes",
   "codes.heading": "Backup codes",
   "codes.warn_lead": "Keep these codes somewhere safe. Each one can be used",
@@ -121,7 +112,6 @@
   "codes.warn_mid": "to sign in if you lose your phone. They will",
   "codes.warn_never": "never be shown again",
   "codes.saved_btn": "I have saved my codes",
-
   "setup.title": "Enable 2FA",
   "setup.back": "← My account",
   "setup.heading": "Enable two-factor authentication",
@@ -131,15 +121,11 @@
   "setup.manual": "Manual entry:",
   "setup.code_label": "Verification code",
   "setup.confirm_btn": "Confirm",
-
-  "role.member": "Member",
-  "role.admin": "Administrator",
-
+  "role.admin": "Platform administrator",
   "pagination.aria": "Pagination",
   "pagination.prev": "← Previous",
   "pagination.next": "Next →",
   "pagination.page": "Page %d of %d",
-
   "sites.title": "Sites",
   "sites.subtitle": "The websites whose forms you receive.",
   "sites.new": "New site",
@@ -152,7 +138,6 @@
   "sites.col.owner": "Owner",
   "sites.col.forms": "Forms",
   "sites.col.unread": "Unread",
-
   "site.back": "← All sites",
   "site.name_label": "Site name",
   "site.domains_label": "Allowed domains",
@@ -170,7 +155,7 @@
   "site.settings_heading": "Site settings",
   "site.owner_label": "Owner",
   "site.owner_btn": "Transfer",
-  "site.owner_help": "The owner manages the site, its forms, and reads their submissions.",
+  "site.owner_help": "The organisation administrator can transfer the site to another user of the organisation. The former owner loses all access.",
   "site.delete_heading": "Delete site",
   "site.delete_help": "Also deletes its forms and all their submissions. Irreversible.",
   "site.delete_btn": "Delete site",
@@ -216,7 +201,6 @@
   "api.err.json_field": "Unknown field: %s.",
   "api.err.too_large": "Body too large.",
   "api.err.too_many_forms": "This site already has %d forms: the API will not create more.",
-
   "form.new.title": "New form",
   "form.settings.title": "Form settings",
   "form.settings_btn": "Settings",
@@ -330,21 +314,18 @@
   "form.err.telegram_pair": "Telegram: the bot token and the chat ID go together. Fill in both, or neither.",
   "form.err.telegram_token": "Invalid Telegram token: it looks like 123456789:AA…, as given by @BotFather.",
   "form.err.telegram_chat": "Invalid Telegram chat ID: a number (negative for a group or a channel) or @channelname is required.",
-
   "submissions.heading": "Submissions (%d)",
   "submissions.mark_all_read": "Mark all as read",
   "submissions.export_btn": "Export as CSV",
   "submissions.export_zip_btn": "Export with attachments",
   "submissions.empty": "No submission yet.",
   "submissions.empty_hint": "They will show up here as soon as your site sends one.",
-
   "export.csv_name": "submissions.csv",
   "export.folder": "attachments",
   "export.folder_col": "Attachments folder",
   "export.err.busy": "Too many exports in progress. Try again in a minute.",
   "export.missing_name": "missing-files.txt",
   "export.missing_intro": "These attachments could not be read and are missing from the archive:",
-
   "submission.title": "Submission",
   "submission.heading": "Submission of %s",
   "submission.col.received": "Received",
@@ -361,7 +342,6 @@
   "submission.attachments": "Attachments",
   "submission.err.attachment_not_found": "Attachment not found",
   "submission.err.attachment_unreadable": "This attachment cannot be decrypted.",
-
   "submit.ok": "Thank you, your message has been sent.",
   "submit.page.ok_title": "Message sent",
   "submit.page.err_title": "Could not send",
@@ -388,7 +368,6 @@
   "submit.err.empty": "The form is empty.",
   "submit.err.unavailable": "The message could not be delivered. Try again in a moment.",
   "submit.err.internal": "Internal error. Try again in a moment.",
-
   "mail.submission.subject": "[%s] New submission: %s",
   "mail.submission.intro": "New submission of the form “%s” on the site “%s”.",
   "mail.submission.no_content": "Its content is not included in this email: read it in the interface.",
@@ -404,7 +383,6 @@
   "mail.captcha.subject": "[%s] Submission refused for lack of the anti-bot check: %s",
   "mail.captcha.intro": "The form “%s” on the site “%s” refused a visitor's submission: their browser did not perform the anti-bot check.",
   "mail.captcha.note": "If the form's page does not load the check script, all its submissions are refused. A bot imitating a browser can also trigger this alert: a test message sent from the site settles it. It is sent at most once a day.",
-
   "chat.submission.title": "New submission: %s",
   "chat.submission.note_stored": "Read it in the interface.",
   "chat.submission.note_email": "Its content was sent by email.",
@@ -412,7 +390,6 @@
   "chat.submission.link": "View submission",
   "chat.test.title": "Test message: %s",
   "chat.test.note": "This channel will receive an alert for each submission of this form.",
-
   "users.title": "Users",
   "users.search_ph": "Search a name or email…",
   "users.new": "New account",
@@ -420,8 +397,6 @@
   "users.email": "Email",
   "users.password_initial": "Initial password",
   "users.role": "Role",
-  "users.role_help_summary": "What each role can do",
-  "users.role_help": "Member: creates and manages their own sites, their forms and submissions.\nAdministrator: sees every site of the instance and manages accounts.",
   "users.create_btn": "Create account",
   "users.col.2fa": "2FA",
   "users.col.status": "Status",
@@ -456,5 +431,38 @@
   "users.err.create_failed": "Could not create the account.",
   "users.err.required": "Name, email and password (%d characters min.) are required.",
   "users.col.sites": "Sites",
-  "users.err.self_deactivate": "You cannot deactivate your own account"
+  "users.err.self_deactivate": "You cannot deactivate your own account",
+  "nav.organisations": "Organisations",
+  "orgs.title": "Organisations",
+  "orgs.new": "New organisation",
+  "orgs.new_help": "The administrator account is created with the organisation. Pass its initial password on outside Naria.",
+  "orgs.name": "Organisation name",
+  "orgs.create_btn": "Create organisation",
+  "orgs.col.name": "Organisation",
+  "orgs.col.admin": "Administrator",
+  "orgs.col.created": "Created on",
+  "orgs.no_admin": "No administrator",
+  "orgs.none": "No organisation.",
+  "orgs.replace_admin_btn": "Replace administrator",
+  "orgs.replace_admin_confirm": "Replace the administrator of %s? The current administrator becomes a plain user.",
+  "orgs.err.name_required": "The organisation name is required.",
+  "orgs.err.not_found": "Organisation not found.",
+  "orgs.flash.created": "Organisation %s created.",
+  "orgs.flash.admin_replaced": "Administrator replaced.",
+  "users.create_help": "The account is created as a user of your organisation. Pass its initial password on outside Naria.",
+  "sites.shared_badge": "Shared",
+  "site.shared_notice": "This site is shared with you for reading: you see its forms and their submissions, but cannot change it.",
+  "site.readers_heading": "Reading submissions",
+  "site.readers_intro": "These users of the organisation read the submissions of every form on this site, without being able to change it.",
+  "site.readers_empty": "No user can read this site.",
+  "site.readers_add_label": "Allow reading to",
+  "site.readers_add_btn": "Allow reading",
+  "site.readers_remove_btn": "Remove",
+  "site.readers_remove_confirm": "Remove reading access for %s?",
+  "site.readers_none_available": "No active user of the organisation to allow reading to.",
+  "site.flash.reader_added": "Reading access allowed.",
+  "site.flash.reader_refused": "Reading access not allowed: this account is not an active user of the organisation, or already owns the site.",
+  "site.flash.reader_removed": "Reading access removed.",
+  "role.admin_orga": "Organisation administrator",
+  "role.user": "User"
 }

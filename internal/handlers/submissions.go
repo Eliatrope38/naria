@@ -95,8 +95,7 @@ func (a *App) FormSubmissions(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// submissionFor loads the submission "{id}" within the user's scope.
-// It writes the response itself on failure.
+// submissionFor loads the submission "{id}" within the user's scope, for reading.
 func (a *App) submissionFor(w http.ResponseWriter, r *http.Request) (database.GetSubmissionScopedRow, bool) {
 	u := web.UserFrom(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -104,8 +103,8 @@ func (a *App) submissionFor(w http.ResponseWriter, r *http.Request) (database.Ge
 		http.Error(w, tr(r, "submission.err.not_found"), http.StatusNotFound)
 		return database.GetSubmissionScopedRow{}, false
 	}
-	isAdmin, viewer := scope(u)
-	sub, err := a.Q.GetSubmissionScoped(r.Context(), database.GetSubmissionScopedParams{ID: id, IsAdmin: isAdmin, ViewerID: viewer})
+	sc := scopeOf(u)
+	sub, err := a.Q.GetSubmissionScoped(r.Context(), database.GetSubmissionScopedParams{ID: id, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID})
 	if err != nil {
 		http.Error(w, tr(r, "submission.err.not_found"), http.StatusNotFound)
 		return database.GetSubmissionScopedRow{}, false
@@ -135,8 +134,14 @@ func (a *App) SubmissionDetail(w http.ResponseWriter, r *http.Request) {
 			attachments = append(attachments, ui.AttachmentVM{ID: att.ID.String(), Name: name, Size: att.Size})
 		}
 	}
-	if err := a.Q.MarkSubmissionRead(r.Context(), sub.ID); err != nil {
-		log.Printf("ERROR soumission: marquage lu id=%s: %v", sub.ID, err)
+	// A reader does not mark submissions read: that changes the owner's list.
+	if sub.CanWrite {
+		sc := scopeOf(web.UserFrom(r.Context()))
+		if _, err := a.Q.MarkSubmissionReadScoped(r.Context(), database.MarkSubmissionReadScopedParams{
+			ID: sub.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID,
+		}); err != nil {
+			log.Printf("ERROR soumission: marquage lu id=%s: %v", sub.ID, err)
+		}
 	}
 	renderPage(w, r, ui.SubmissionPage(ui.SubmissionVM{
 		User: web.UserFrom(r.Context()), Sub: sub,
@@ -153,8 +158,8 @@ func (a *App) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, tr(r, "submission.err.attachment_not_found"), http.StatusNotFound)
 		return
 	}
-	isAdmin, viewer := scope(web.UserFrom(r.Context()))
-	att, err := a.Q.GetAttachmentScoped(r.Context(), database.GetAttachmentScopedParams{ID: id, IsAdmin: isAdmin, ViewerID: viewer})
+	sc := scopeOf(web.UserFrom(r.Context()))
+	att, err := a.Q.GetAttachmentScoped(r.Context(), database.GetAttachmentScopedParams{ID: id, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID})
 	if err != nil {
 		http.Error(w, tr(r, "submission.err.attachment_not_found"), http.StatusNotFound)
 		return
@@ -181,11 +186,18 @@ func (a *App) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) DeleteSubmission(w http.ResponseWriter, r *http.Request) {
+	u := web.UserFrom(r.Context())
 	sub, ok := a.submissionFor(w, r)
 	if !ok {
 		return
 	}
-	if err := a.Q.DeleteSubmission(r.Context(), sub.ID); err != nil {
+	if !sub.CanWrite {
+		http.Error(w, tr(r, "submission.err.not_found"), http.StatusNotFound)
+		return
+	}
+	sc := scopeOf(u)
+	n, err := a.Q.DeleteSubmissionScoped(r.Context(), database.DeleteSubmissionScopedParams{ID: sub.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID})
+	if err != nil || n == 0 {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}
@@ -195,11 +207,14 @@ func (a *App) DeleteSubmission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) MarkAllRead(w http.ResponseWriter, r *http.Request) {
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
-	if err := a.Q.MarkFormSubmissionsRead(r.Context(), form.ID); err != nil {
+	sc := scopeOf(web.UserFrom(r.Context()))
+	if _, err := a.Q.MarkFormSubmissionsReadScoped(r.Context(), database.MarkFormSubmissionsReadScopedParams{
+		FormID: form.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID,
+	}); err != nil {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}
@@ -208,11 +223,14 @@ func (a *App) MarkAllRead(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) PurgeFormSubmissions(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	form, ok := a.formFor(w, r)
+	form, ok := a.writableFormFor(w, r)
 	if !ok {
 		return
 	}
-	n, err := a.Q.DeleteSubmissionsByForm(r.Context(), form.ID)
+	sc := scopeOf(u)
+	n, err := a.Q.DeleteSubmissionsByFormScoped(r.Context(), database.DeleteSubmissionsByFormScopedParams{
+		FormID: form.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID,
+	})
 	if err != nil {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return

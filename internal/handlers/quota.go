@@ -190,12 +190,26 @@ func (a *App) alertFormFull(form database.GetFormByAccessKeyRow) {
 	}()
 }
 
+// siteAlertAddresses returns the address of the site's owner and, when it is another
+// account, the address of its organisation's administrator. An empty administrator
+// address means there is none active. Readers of a shared site get no alert.
+func (a *App) siteAlertAddresses(ctx context.Context, siteID uuid.UUID) (owner, orgAdmin string, err error) {
+	row, err := a.Q.GetSiteAlertEmails(ctx, siteID)
+	if err != nil {
+		return "", "", err
+	}
+	if row.AdminEmail != nil && *row.AdminEmail != row.OwnerEmail {
+		orgAdmin = *row.AdminEmail
+	}
+	return row.OwnerEmail, orgAdmin, nil
+}
+
 // sendFormFullAlert sends the alert. The owner and recipients each receive
 // their own message, so the owner's login address is not exposed. Only
 // the owner's failure is returned, and so retried: retrying for a recipient
 // refused would send the alert to the owner every ten minutes.
 func (a *App) sendFormFullAlert(ctx context.Context, form database.GetFormByAccessKeyRow) error {
-	owner, err := a.Q.GetSiteOwnerEmail(ctx, form.SiteID)
+	owner, orgAdmin, err := a.siteAlertAddresses(ctx, form.SiteID)
 	if err != nil {
 		return err
 	}
@@ -214,10 +228,16 @@ func (a *App) sendFormFullAlert(ctx context.Context, form database.GetFormByAcce
 	if err := a.Mailer.Send(ctx, msg); err != nil {
 		return err
 	}
+	if orgAdmin != "" {
+		msg.To = []string{orgAdmin}
+		if err := a.Mailer.Send(ctx, msg); err != nil {
+			log.Printf("ERROR email: alerte de quota à l'administrateur de l'organisation formulaire=%s: %q", form.ID, err.Error()) // #nosec G706 -- form.ID is a UUID; the error is quoted (%q escapes CR/LF)
+		}
+	}
 	if !form.NotifyEmail {
 		return nil
 	}
-	msg.To = slices.DeleteFunc(slices.Clone(form.Recipients), func(to string) bool { return to == owner })
+	msg.To = slices.DeleteFunc(slices.Clone(form.Recipients), func(to string) bool { return to == owner || to == orgAdmin })
 	if len(msg.To) == 0 {
 		return nil
 	}

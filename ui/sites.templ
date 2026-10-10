@@ -92,7 +92,7 @@ templ SitesPage(user *database.User, sites []database.ListSitesScopedRow, q stri
 						<thead>
 							<tr>
 								<th scope="col">{ T(ctx, "sites.col.site") }</th>
-								if auth.IsAdmin(user.Role) {
+								if user.Role == auth.RoleOrgAdmin {
 									<th scope="col" style="width:180px">{ T(ctx, "sites.col.owner") }</th>
 								}
 								<th scope="col" style="width:120px">{ T(ctx, "sites.col.forms") }</th>
@@ -104,11 +104,14 @@ templ SitesPage(user *database.User, sites []database.ListSitesScopedRow, q stri
 								<tr>
 									<td>
 										<a href={ templ.SafeURL("/sites/" + s.ID.String()) } class="ink" style="font-weight:600">{ s.Name }</a>
+										if !s.CanWrite {
+											<span class="badge badge--neutral" style="margin-left:8px">{ T(ctx, "sites.shared_badge") }</span>
+										}
 										<div>
 											@domainList(s.Domains)
 										</div>
 									</td>
-									if auth.IsAdmin(user.Role) {
+									if user.Role == auth.RoleOrgAdmin {
 										<td class="muted">{ s.OwnerName }</td>
 									}
 									<td>{ itoa(s.FormCount) }</td>
@@ -153,10 +156,15 @@ templ SitePage(vm SiteVM) {
 				<h1 style="margin-bottom:4px">{ vm.Site.Name }</h1>
 				@domainList(vm.Site.Domains)
 			</div>
-			<a href={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/forms/new") } class="btn">{ T(ctx, "site.new_form_btn") }</a>
+			if vm.Site.CanWrite {
+				<a href={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/forms/new") } class="btn">{ T(ctx, "site.new_form_btn") }</a>
+			}
 		</div>
 		if vm.Flash != "" {
 			<div role="status" aria-live="polite" class="alert alert--success">{ vm.Flash }</div>
+		}
+		if !vm.Site.CanWrite {
+			<p class="alert" role="note">{ T(ctx, "site.shared_notice") }</p>
 		}
 		<h2 class="subhead">{ T(ctx, "site.forms_heading") }</h2>
 		if len(vm.Forms) == 0 {
@@ -214,6 +222,7 @@ templ SitePage(vm SiteVM) {
 				</div>
 			</div>
 		}
+		if vm.Site.CanWrite {
 		<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.tokens.heading") }</h2>
 		<div class="service-card" style="margin-bottom:20px">
 			<p class="muted" style="font-size:.88rem;margin:0 0 14px">{ T(ctx, "site.tokens.intro") } <code class="mono">{ vm.APIBase }</code></p>
@@ -295,6 +304,8 @@ templ SitePage(vm SiteVM) {
 			</form>
 			<p id="site-token-help" class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.tokens.help") }</p>
 		</div>
+		}
+		if vm.Site.CanWrite {
 		<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.settings_heading") }</h2>
 		<div class="service-card" style="margin-bottom:20px">
 			if vm.ErrMsg != "" {
@@ -314,7 +325,51 @@ templ SitePage(vm SiteVM) {
 				<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "common.save") }</button>
 			</form>
 		</div>
-		if len(vm.Owners) > 0 {
+		}
+		if vm.User.Role == auth.RoleOrgAdmin {
+			<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.readers_heading") }</h2>
+			<div class="service-card" style="margin-bottom:20px">
+				<p class="muted" style="font-size:.88rem;margin:0 0 14px">{ T(ctx, "site.readers_intro") }</p>
+				if len(vm.Readers) == 0 {
+					<p class="muted" style="margin:0 0 14px">{ T(ctx, "site.readers_empty") }</p>
+				} else {
+					<div class="table-scroll" style="margin-bottom:18px">
+						<table class="specs-table m-0">
+							<tbody>
+								for _, rd := range vm.Readers {
+									<tr>
+										<td class="ink">{ rd.Name } <span class="muted">({ rd.Email })</span></td>
+										<td>
+											<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/readers/" + rd.ID.String() + "/delete") } data-confirm={ T(ctx, "site.readers_remove_confirm", rd.Name) }>
+												<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+												<button type="submit" class="btn btn--ghost btn--sm btn--danger">{ T(ctx, "site.readers_remove_btn") }</button>
+											</form>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+				if len(vm.Grantable) > 0 {
+					<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/readers") } style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<label style="flex:1;min-width:220px">
+							<span class="field-label">{ T(ctx, "site.readers_add_label") }</span>
+							<select name="user_id" class="input">
+								for _, g := range vm.Grantable {
+									<option value={ g.ID.String() }>{ g.Name } ({ g.Email })</option>
+								}
+							</select>
+						</label>
+						<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "site.readers_add_btn") }</button>
+					</form>
+				} else {
+					<p class="muted" style="margin:0">{ T(ctx, "site.readers_none_available") }</p>
+				}
+			</div>
+		}
+		if vm.Site.CanWrite && len(vm.Owners) > 0 {
 			<div class="service-card" style="margin-bottom:20px">
 				<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/owner") } style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
 					<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
@@ -331,6 +386,7 @@ templ SitePage(vm SiteVM) {
 				<p class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.owner_help") }</p>
 			</div>
 		}
+		if vm.Site.CanWrite {
 		<div class="service-card danger-zone">
 			<div class="row-between">
 				<div>
@@ -343,5 +399,6 @@ templ SitePage(vm SiteVM) {
 				</form>
 			</div>
 		</div>
+		}
 	}
 }

@@ -21,25 +21,51 @@ SELECT * FROM submissions WHERE form_id = $1 ORDER BY created_at, id;
 -- name: CountSubmissionsByForm :one
 SELECT count(*) FROM submissions WHERE form_id = $1;
 
+-- Même périmètre que forms.sql. Les écritures portent la condition d'écriture
+-- (propriétaire ou administrateur de l'organisation), jamais la lecture seule.
 -- name: GetSubmissionScoped :one
-SELECT sub.*, f.name AS form_name, f.site_id, s.name AS site_name
+SELECT sub.*, f.name AS form_name, f.site_id, s.name AS site_name,
+       coalesce(s.owner_id = sqlc.arg('viewer_id') OR o.org_id = sqlc.narg('admin_org_id')::uuid, false)::bool AS can_write
 FROM submissions sub
 JOIN forms f ON f.id = sub.form_id
 JOIN sites s ON s.id = f.site_id
+JOIN users o ON o.id = s.owner_id
 WHERE sub.id = sqlc.arg('id')
-  AND (sqlc.arg('is_admin')::bool OR s.owner_id = sqlc.arg('viewer_id'));
+  AND (s.owner_id = sqlc.arg('viewer_id')
+       OR o.org_id = sqlc.narg('admin_org_id')::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = sqlc.arg('viewer_id')));
 
--- name: MarkSubmissionRead :exec
-UPDATE submissions SET read_at = now() WHERE id = $1 AND read_at IS NULL;
+-- name: MarkSubmissionReadScoped :execrows
+UPDATE submissions sub SET read_at = now()
+WHERE sub.id = sqlc.arg('id') AND sub.read_at IS NULL
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = sqlc.arg('viewer_id')
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = sqlc.narg('admin_org_id')::uuid));
 
--- name: MarkFormSubmissionsRead :exec
-UPDATE submissions SET read_at = now() WHERE form_id = $1 AND read_at IS NULL;
+-- name: MarkFormSubmissionsReadScoped :execrows
+UPDATE submissions sub SET read_at = now()
+WHERE sub.form_id = sqlc.arg('form_id') AND sub.read_at IS NULL
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = sqlc.arg('viewer_id')
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = sqlc.narg('admin_org_id')::uuid));
 
--- name: DeleteSubmission :exec
-DELETE FROM submissions WHERE id = $1;
+-- name: DeleteSubmissionScoped :execrows
+DELETE FROM submissions sub
+WHERE sub.id = sqlc.arg('id')
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = sqlc.arg('viewer_id')
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = sqlc.narg('admin_org_id')::uuid));
 
--- name: DeleteSubmissionsByForm :execrows
-DELETE FROM submissions WHERE form_id = $1;
+-- name: DeleteSubmissionsByFormScoped :execrows
+DELETE FROM submissions sub
+WHERE sub.form_id = sqlc.arg('form_id')
+  AND sub.form_id IN (SELECT f.id FROM forms f
+                      JOIN sites s ON s.id = f.site_id
+                      WHERE s.owner_id = sqlc.arg('viewer_id')
+                         OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = sqlc.narg('admin_org_id')::uuid));
 
 -- PurgeExpiredSubmissions applique la durée de conservation de chaque formulaire
 -- (retention_days = 0 : conservation sans limite).

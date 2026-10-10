@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"gitlab.com/detag_inno/naria/internal/auth"
+
 	"gitlab.com/detag_inno/naria/internal/database"
 	"gitlab.com/detag_inno/naria/internal/handlers"
 	"gitlab.com/detag_inno/naria/internal/web"
@@ -303,15 +305,11 @@ func TestAPIJetonCloisonneAuSite(t *testing.T) {
 	}
 
 	// Account disabled: its token is worthless, then valid again with it.
-	if err := e.q.SetUserActive(ctx, database.SetUserActiveParams{ID: e.fx.memberA.ID, Active: false}); err != nil {
-		t.Fatalf("désactivation: %v", err)
-	}
+	setActive(t, e, e.fx.orgA, e.fx.memberA, false)
 	if code, _, _ := api(t, e, http.MethodGet, "/site", token, ""); code != http.StatusUnauthorized {
 		t.Errorf("créateur désactivé : statut %d (401 attendu)", code)
 	}
-	if err := e.q.SetUserActive(ctx, database.SetUserActiveParams{ID: e.fx.memberA.ID, Active: true}); err != nil {
-		t.Fatalf("réactivation: %v", err)
-	}
+	setActive(t, e, e.fx.orgA, e.fx.memberA, true)
 	if code, _, _ := api(t, e, http.MethodGet, "/site", token, ""); code != http.StatusOK {
 		t.Fatalf("créateur réactivé : statut %d", code)
 	}
@@ -319,7 +317,7 @@ func TestAPIJetonCloisonneAuSite(t *testing.T) {
 	// Site transferred to B: A's token, which no longer has access, has no effect,
 	// and the page says so to the new owner.
 	adm := newClient()
-	login(t, adm, e.url, e.fx.admin.Email)
+	login(t, adm, e.url, e.fx.orgAdmin.Email)
 	adminToken := createToken(t, e, adm, e.fx.siteA, "Agent de l'administrateur")
 	resp := postForm(t, adm, e.url+"/sites/"+e.fx.siteA.ID.String()+"/owner", url.Values{
 		"csrf_token": {csrfToken(t, adm, e.url+"/account")}, "owner_id": {e.fx.memberB.ID.String()},
@@ -342,7 +340,7 @@ func TestAPIJetonCloisonneAuSite(t *testing.T) {
 	if code, _, _ := api(t, e, http.MethodGet, "/site", adminToken, ""); code != http.StatusOK {
 		t.Errorf("jeton de l'administrateur après transfert : statut %d", code)
 	}
-	if err := e.q.SetUserRole(ctx, database.SetUserRoleParams{ID: e.fx.admin.ID, Role: auth.RoleMember}); err != nil {
+	if err := e.q.DemoteOrgAdmin(ctx, pgtype.UUID{Bytes: e.fx.orgA.ID, Valid: true}); err != nil {
 		t.Fatalf("rétrogradation: %v", err)
 	}
 	if code, _, _ := api(t, e, http.MethodGet, "/site", adminToken, ""); code != http.StatusUnauthorized {
@@ -475,7 +473,7 @@ func TestAPILimiteDeDebit(t *testing.T) {
 func TestAPICreationValeursParDefaut(t *testing.T) {
 	e := setup(t)
 	adm := newClient()
-	login(t, adm, e.url, e.fx.admin.Email)
+	login(t, adm, e.url, e.fx.orgAdmin.Email)
 	token := createToken(t, e, adm, e.fx.siteA, "Agent de l'administrateur")
 
 	code, created, raw := api(t, e, http.MethodPost, "/forms", token, `{"name": "Minimal"}`)
@@ -487,11 +485,11 @@ func TestAPICreationValeursParDefaut(t *testing.T) {
 		created["redirect_url"] != "" || strings.Contains(raw, "captcha.js") {
 		t.Errorf("valeurs par défaut inattendues : %s", raw)
 	}
-	if strings.Contains(raw, "recipients") || strings.Contains(raw, e.fx.admin.Email) {
+	if strings.Contains(raw, "recipients") || strings.Contains(raw, e.fx.orgAdmin.Email) {
 		t.Errorf("la réponse donne un destinataire : %s", raw)
 	}
 	form, err := e.q.GetFormByAccessKey(context.Background(), created["access_key"].(string))
-	if err != nil || len(form.Recipients) != 1 || form.Recipients[0] != e.fx.admin.Email {
+	if err != nil || len(form.Recipients) != 1 || form.Recipients[0] != e.fx.orgAdmin.Email {
 		t.Errorf("destinataires du formulaire : %v (err=%v)", form.Recipients, err)
 	}
 }

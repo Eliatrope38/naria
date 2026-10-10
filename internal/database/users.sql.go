@@ -10,35 +10,31 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countActiveAdmins = `-- name: CountActiveAdmins :one
-SELECT count(*) FROM users WHERE role = 'admin' AND active = TRUE
+const countOrgUsersMatching = `-- name: CountOrgUsersMatching :one
+SELECT count(*) FROM users u
+WHERE u.org_id = $1
+  AND ($2::text IS NULL OR u.name ILIKE '%' || $2 || '%' OR u.email ILIKE '%' || $2 || '%')
 `
 
-func (q *Queries) CountActiveAdmins(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countActiveAdmins)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type CountOrgUsersMatchingParams struct {
+	OrgID  pgtype.UUID
+	Search *string
 }
 
-const countUsersMatching = `-- name: CountUsersMatching :one
-SELECT count(*) FROM users u
-WHERE ($1::text IS NULL OR u.name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%')
-`
-
-func (q *Queries) CountUsersMatching(ctx context.Context, search *string) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsersMatching, search)
+func (q *Queries) CountOrgUsersMatching(ctx context.Context, arg CountOrgUsersMatchingParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrgUsersMatching, arg.OrgID, arg.Search)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, role, password_hash)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at
+INSERT INTO users (email, name, role, password_hash, org_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at, org_id
 `
 
 type CreateUserParams struct {
@@ -46,6 +42,7 @@ type CreateUserParams struct {
 	Name         string
 	Role         string
 	PasswordHash string
+	OrgID        pgtype.UUID
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -54,6 +51,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Name,
 		arg.Role,
 		arg.PasswordHash,
+		arg.OrgID,
 	)
 	var i User
 	err := row.Scan(
@@ -67,16 +65,35 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.TotpEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
-const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users WHERE id = $1
+const deleteUserScoped = `-- name: DeleteUserScoped :execrows
+DELETE FROM users WHERE id = $1 AND org_id = $2 AND role = 'user'
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteUser, id)
+type DeleteUserScopedParams struct {
+	ID         uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+func (q *Queries) DeleteUserScoped(ctx context.Context, arg DeleteUserScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserScoped, arg.ID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const demoteOrgAdmin = `-- name: DemoteOrgAdmin :exec
+UPDATE users SET role = 'user', updated_at = now() WHERE org_id = $1 AND role = 'admin_orga'
+`
+
+// Remplacement de l'administrateur d'une organisation : l'ancien redevient user.
+func (q *Queries) DemoteOrgAdmin(ctx context.Context, orgID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, demoteOrgAdmin, orgID)
 	return err
 }
 
@@ -89,8 +106,56 @@ func (q *Queries) DisableUserTOTP(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const disableUserTOTPScoped = `-- name: DisableUserTOTPScoped :execrows
+UPDATE users SET totp_secret = NULL, totp_enabled = FALSE, updated_at = now()
+WHERE id = $1 AND org_id = $2 AND role = 'user'
+`
+
+type DisableUserTOTPScopedParams struct {
+	ID         uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+func (q *Queries) DisableUserTOTPScoped(ctx context.Context, arg DisableUserTOTPScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disableUserTOTPScoped, arg.ID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getOrgUser = `-- name: GetOrgUser :one
+SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at, org_id FROM users WHERE id = $1 AND org_id = $2 AND role = 'user'
+`
+
+type GetOrgUserParams struct {
+	ID    uuid.UUID
+	OrgID pgtype.UUID
+}
+
+// Le compte désigné dans un écran d'administration de l'organisation : un compte
+// user de cette organisation, sinon rien (404).
+func (q *Queries) GetOrgUser(ctx context.Context, arg GetOrgUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, getOrgUser, arg.ID, arg.OrgID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Role,
+		&i.PasswordHash,
+		&i.Active,
+		&i.TotpSecret,
+		&i.TotpEnabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrgID,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at, org_id FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -107,12 +172,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.TotpEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at, org_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -129,16 +195,17 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.TotpEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
-const listActiveUsers = `-- name: ListActiveUsers :many
-SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at FROM users WHERE active = TRUE ORDER BY name
+const listActiveOrgUsers = `-- name: ListActiveOrgUsers :many
+SELECT id, email, name, role, password_hash, active, totp_secret, totp_enabled, created_at, updated_at, org_id FROM users WHERE org_id = $1 AND active = TRUE ORDER BY name
 `
 
-func (q *Queries) ListActiveUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.Query(ctx, listActiveUsers)
+func (q *Queries) ListActiveOrgUsers(ctx context.Context, orgID pgtype.UUID) ([]User, error) {
+	rows, err := q.db.Query(ctx, listActiveOrgUsers, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +224,7 @@ func (q *Queries) ListActiveUsers(ctx context.Context) ([]User, error) {
 			&i.TotpEnabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrgID,
 		); err != nil {
 			return nil, err
 		}
@@ -168,21 +236,23 @@ func (q *Queries) ListActiveUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
-const listUsers = `-- name: ListUsers :many
-SELECT u.id, u.email, u.name, u.role, u.password_hash, u.active, u.totp_secret, u.totp_enabled, u.created_at, u.updated_at, (SELECT count(*) FROM sites s WHERE s.owner_id = u.id) AS site_count
+const listOrgUsers = `-- name: ListOrgUsers :many
+SELECT u.id, u.email, u.name, u.role, u.password_hash, u.active, u.totp_secret, u.totp_enabled, u.created_at, u.updated_at, u.org_id, (SELECT count(*) FROM sites s WHERE s.owner_id = u.id) AS site_count
 FROM users u
-WHERE ($1::text IS NULL OR u.name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%')
+WHERE u.org_id = $1
+  AND ($2::text IS NULL OR u.name ILIKE '%' || $2 || '%' OR u.email ILIKE '%' || $2 || '%')
 ORDER BY u.name
-LIMIT $3 OFFSET $2
+LIMIT $4 OFFSET $3
 `
 
-type ListUsersParams struct {
+type ListOrgUsersParams struct {
+	OrgID      pgtype.UUID
 	Search     *string
 	PageOffset int32
 	PageLimit  int32
 }
 
-type ListUsersRow struct {
+type ListOrgUsersRow struct {
 	ID           uuid.UUID
 	Email        string
 	Name         string
@@ -193,18 +263,26 @@ type ListUsersRow struct {
 	TotpEnabled  bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	OrgID        pgtype.UUID
 	SiteCount    int64
 }
 
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.Search, arg.PageOffset, arg.PageLimit)
+// Les comptes d'une organisation, pour son administrateur. Le périmètre est
+// l'organisation de l'administrateur, passée par l'application.
+func (q *Queries) ListOrgUsers(ctx context.Context, arg ListOrgUsersParams) ([]ListOrgUsersRow, error) {
+	rows, err := q.db.Query(ctx, listOrgUsers,
+		arg.OrgID,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListUsersRow
+	var items []ListOrgUsersRow
 	for rows.Next() {
-		var i ListUsersRow
+		var i ListOrgUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
@@ -216,6 +294,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 			&i.TotpEnabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrgID,
 			&i.SiteCount,
 		); err != nil {
 			return nil, err
@@ -228,18 +307,26 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 	return items, nil
 }
 
-const setUserActive = `-- name: SetUserActive :exec
-UPDATE users SET active = $2, updated_at = now() WHERE id = $1
+const setUserActiveScoped = `-- name: SetUserActiveScoped :execrows
+UPDATE users SET active = $1, updated_at = now()
+WHERE id = $2 AND org_id = $3 AND role = 'user'
 `
 
-type SetUserActiveParams struct {
-	ID     uuid.UUID
-	Active bool
+type SetUserActiveScopedParams struct {
+	Active     bool
+	ID         uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
-func (q *Queries) SetUserActive(ctx context.Context, arg SetUserActiveParams) error {
-	_, err := q.db.Exec(ctx, setUserActive, arg.ID, arg.Active)
-	return err
+// Les écritures sur un compte ne visent que les comptes user de l'organisation de
+// l'administrateur (sqlc.arg('admin_org_id')). Un compte hors périmètre n'est pas
+// modifié, et le nombre de lignes le dit à l'application.
+func (q *Queries) SetUserActiveScoped(ctx context.Context, arg SetUserActiveScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserActiveScoped, arg.Active, arg.ID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setUserPassword = `-- name: SetUserPassword :exec
@@ -256,18 +343,23 @@ func (q *Queries) SetUserPassword(ctx context.Context, arg SetUserPasswordParams
 	return err
 }
 
-const setUserRole = `-- name: SetUserRole :exec
-UPDATE users SET role = $2, updated_at = now() WHERE id = $1
+const setUserPasswordScoped = `-- name: SetUserPasswordScoped :execrows
+UPDATE users SET password_hash = $1, updated_at = now()
+WHERE id = $2 AND org_id = $3 AND role = 'user'
 `
 
-type SetUserRoleParams struct {
-	ID   uuid.UUID
-	Role string
+type SetUserPasswordScopedParams struct {
+	PasswordHash string
+	ID           uuid.UUID
+	AdminOrgID   pgtype.UUID
 }
 
-func (q *Queries) SetUserRole(ctx context.Context, arg SetUserRoleParams) error {
-	_, err := q.db.Exec(ctx, setUserRole, arg.ID, arg.Role)
-	return err
+func (q *Queries) SetUserPasswordScoped(ctx context.Context, arg SetUserPasswordScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserPasswordScoped, arg.PasswordHash, arg.ID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setUserTOTP = `-- name: SetUserTOTP :exec
@@ -307,7 +399,27 @@ type UpdateUserNameParams struct {
 	Name string
 }
 
+// Opérations sur son propre compte, depuis /account ou la réinitialisation.
 func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) error {
 	_, err := q.db.Exec(ctx, updateUserName, arg.ID, arg.Name)
 	return err
+}
+
+const updateUserNameScoped = `-- name: UpdateUserNameScoped :execrows
+UPDATE users SET name = $1, updated_at = now()
+WHERE id = $2 AND org_id = $3 AND role = 'user'
+`
+
+type UpdateUserNameScopedParams struct {
+	Name       string
+	ID         uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+func (q *Queries) UpdateUserNameScoped(ctx context.Context, arg UpdateUserNameScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateUserNameScoped, arg.Name, arg.ID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

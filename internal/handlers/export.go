@@ -38,6 +38,8 @@ type exportLine struct {
 	values map[string]string
 }
 
+var errExportAccessLost = errors.New("form access withdrawn during the export")
+
 // exportLines decrypts the submissions. The columns are the union of the fields, in
 // order of first appearance. An unreadable submission is dropped.
 func (a *App) exportLines(list []database.Submission) (columns []string, lines []exportLine) {
@@ -166,8 +168,8 @@ func (a *App) ExportCSV(w http.ResponseWriter, r *http.Request) {
 // attachmentData reads and decrypts an attachment within the requester's scope.
 // ok is false if it is missing: deleted, out of scope, or undecryptable.
 // An error means the database did not respond.
-func (a *App) attachmentData(ctx context.Context, id uuid.UUID, isAdmin bool, viewer uuid.UUID) (data []byte, ok bool, err error) {
-	row, err := a.Q.GetAttachmentScoped(ctx, database.GetAttachmentScopedParams{ID: id, IsAdmin: isAdmin, ViewerID: viewer})
+func (a *App) attachmentData(ctx context.Context, id uuid.UUID, sc scope) (data []byte, ok bool, err error) {
+	row, err := a.Q.GetAttachmentScoped(ctx, database.GetAttachmentScopedParams{ID: id, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil
 	}
@@ -266,12 +268,27 @@ func (a *App) ExportZIP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		abort(err)
 	}
-	isAdmin, viewer := scope(u)
+	sc := scopeOf(u)
 	var missing []string
 	for _, att := range attachments {
 		folder, ok := folders[att.SubmissionID]
 		if !ok {
 			continue
+		}
+		// Access can be withdrawn while the archive is written. Each file checks it
+		// again, and the archive is cut when it is gone: a missing file would be
+		// listed by name, and that name would then reach someone who lost access.
+		// The account is read again too: a deactivated account, or an administrator replaced
+		// during the archive, keeps no rights from the start of the request.
+		current, err := a.Q.GetUserByID(r.Context(), sc.viewerID)
+		if err != nil || !current.Active {
+			abort(errExportAccessLost)
+		}
+		sc = scopeOf(&current)
+		if _, err := a.Q.GetFormScoped(r.Context(), database.GetFormScopedParams{ID: form.ID, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID}); errors.Is(err, pgx.ErrNoRows) {
+			abort(errExportAccessLost)
+		} else if err != nil {
+			abort(err)
 		}
 		// A missing file is reported in the archive rather than aborting it.
 		name, err := a.AttachmentCrypto.Decrypt(att.Filename)
@@ -281,7 +298,7 @@ func (a *App) ExportZIP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		entryName := folder + "/" + zipEntryName(att.Position, name)
-		data, ok, err := a.attachmentData(r.Context(), att.ID, isAdmin, viewer)
+		data, ok, err := a.attachmentData(r.Context(), att.ID, sc)
 		if err != nil {
 			abort(err)
 		}

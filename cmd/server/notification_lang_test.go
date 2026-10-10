@@ -188,7 +188,7 @@ func TestLangueDeLAlerteDeQuota(t *testing.T) {
 			// the alert to the owner, then to the recipients.
 			want, unwanted := notificationsIn[lang], notificationsIn[other]
 			var alerts, notStored int
-			for _, m := range e.mailer.messages(t, 5) {
+			for _, m := range e.mailer.messages(t, 6) {
 				switch {
 				case strings.Contains(m.HTML, "/forms/"+e.fx.formB.ID.String()):
 					written(t, "alerte de quota", mailText(m), want.quota, unwanted.quota)
@@ -198,8 +198,8 @@ func TestLangueDeLAlerteDeQuota(t *testing.T) {
 					notStored++
 				}
 			}
-			if alerts != 2 || notStored != 1 {
-				t.Errorf("%d alerte(s) de quota et %d email(s) sans conservation, 2 et 1 attendus", alerts, notStored)
+			if alerts != 3 || notStored != 1 {
+				t.Errorf("%d alerte(s) de quota et %d email(s) sans conservation, 3 et 1 attendus", alerts, notStored)
 			}
 		})
 	}

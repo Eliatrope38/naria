@@ -14,7 +14,7 @@ A self-hosted back end for the forms on your websites. Naria is a self-hosted al
 
 A static site has no server to receive its contact form. Naria is that server. You declare a **site** in it, create a **form**, and paste the code it gives you into your page. Each submission is then emailed to the form's recipients, listed in the interface (encrypted at rest), or both. A Slack, Microsoft Teams, Discord or Telegram alert can also notify a channel for each submission.
 
-There are two roles. A `member` manages its own sites, forms and submissions. An `admin` sees all sites and manages accounts.
+Accounts belong to an organisation, and there are three roles. A `user` manages the sites it owns, with their forms and submissions, and reads the submissions of the sites an administrator of its organisation has shared with it. An `admin_orga` manages every site, form and submission of its organisation, and its user accounts. The `admin` of the instance creates organisations and their administrators, and sees no site, form or submission.
 
 ## Privacy
 
@@ -28,7 +28,7 @@ The anti-bot check is optional and set per form. It involves no third party: the
 
 The content of retained submissions is encrypted with AES-256-GCM before it reaches the database. A backup, or direct access to PostgreSQL, without `APP_SECRET_KEY` yields nothing. Each form has its own retention period (90 days by default), enforced by a daily purge. A form can also keep nothing at all, in email-only mode: the visitor then gets a success only if the email service accepted the message. Conversely, the email can be limited to "a submission is waiting for you", with a link, in which case the data never leaves the instance. Separation between accounts is enforced in the SQL queries, not only in the display.
 
-What Naria cannot do for you: an email leaves the instance as soon as it is sent. From then on, your email service (SMTP server or Microsoft 365) and the recipient's mailbox are in control of it. A message accepted and then rejected further along comes back as a non-delivery report to the sender address, so check that mailbox. The administrator of the instance, who holds the key, can read everything.
+What Naria cannot do for you: an email leaves the instance as soon as it is sent. From then on, your email service (SMTP server or Microsoft 365) and the recipient's mailbox are in control of it. A message accepted and then rejected further along comes back as a non-delivery report to the sender address, so check that mailbox. The administrator of the instance, who holds the key, can read everything. The interface does not show submissions to the platform administrator, but the key itself would allow it.
 
 ## Features
 
@@ -40,7 +40,7 @@ A form can also be created through the API, with a token tied to one site. This 
 
 Naria stays close to Web3Forms: it uses the same `/submit` address, the same `access_key` field, and the same `subject`, `replyto`, `redirect` and `botcheck` fields. An existing Web3Forms form usually works after you change its URL and key.
 
-On the account side, you can create accounts, assign roles, deactivate accounts, reset passwords and 2FA, transfer a site to another account, and use a TOTP second factor with backup codes. Forgotten passwords are handled through an email link. An audit log, with bounded retention, records privileged actions. These include exports, the creation and revocation of API tokens, and form settings, both when a form is created and at every change, alert channels included.
+On the account side, an organisation's administrator creates its user accounts, deactivates them, resets their passwords and 2FA, transfers a site to another account of the organisation, and shares a site's submissions for reading. The administrator of the instance creates organisations and replaces their administrator. Any account can use a TOTP second factor with backup codes. Forgotten passwords are handled through an email link. An audit log, with bounded retention, records privileged actions. These include exports, the creation and revocation of API tokens, and form settings, both when a form is created and at every change, alert channels included.
 
 The interface is available in French, English, Italian and German, and each form chooses which of these languages its emails and alerts are written in. It has a dark mode and can be white-labelled (name, colour, logo, CSS, legal pages). The whole application fits in one binary, with migrations and static files embedded, and PostgreSQL alongside it.
 
@@ -244,7 +244,7 @@ An instance deployed before this setting changes Docker network when updated. `d
 
 ## Security
 
-Separation between accounts is enforced in the queries and tested. An account never sees or modifies another account's site, form or submission, and receives a 404, as it would for a nonexistent resource.
+Separation between accounts is enforced in the queries and tested. An account sees the sites it owns, the sites of its organisation if it administers it, and the sites shared with it for reading. It modifies only the first two, and an account outside that scope receives a 404, as it would for a nonexistent resource. A reader never changes a site, a form or a submission, and does not mark submissions as read. The administrator of the instance receives a 404 on every site, form, submission, attachment, export and token, and sees only the list of organisations. An organisation's accounts are managed by its administrator alone. An account's address is unique across the instance, so an administrator can learn that it is already in use elsewhere. The interface does not show the content of submissions to the administrator of the instance, but that administrator holds the key that decrypts them, and can change the accounts that do.
 
 Anonymous input is bounded: the number and size of fields and files, the size of the body, and control characters are removed. A file is read only once the form is identified, the origin verified and the rate limit passed. The number of simultaneous file submissions is capped for the whole instance. When the form requires an anti-bot check, that check also runs first: without a valid solution, no file is read. The challenge is signed by the instance, bound to the form, valid for five minutes and usable once. Requesting it reads no database and leaves nothing in memory. With an antivirus, each file is scanned before it reaches the database or an email. A scan that does not complete (antivirus unreachable, timeout, error) counts as a refusal, just like an infected file. In the interface, a file is always served as a download and never displayed by the browser. In the archive export, its name is stripped of any path separator, so on extraction it cannot be written outside its folder. At most two archive exports are served at the same time, each for thirty minutes at most. All visitor content is escaped on display and in emails. The subject and the reply address cannot inject headers. The return page is limited to the site's domains, which rules out any open redirect.
 
@@ -268,7 +268,6 @@ In CI, `gitleaks`, `govulncheck` and `semgrep` are blocking. `gosec` and the ima
 - The notification language is set per form, not per recipient. Its recipients, its chat channel and the site owner all read the same language.
 - A failed Slack, Teams, Discord or Telegram alert is visible only in the server logs.
 - The API creates and lists forms. It does not read submissions.
-- A site has a single owner (plus the administrator), so members cannot share sites.
 - Since content is encrypted, submissions cannot be searched.
 
 ## Development

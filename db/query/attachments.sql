@@ -17,8 +17,11 @@ FROM attachments a
 JOIN submissions sub ON sub.id = a.submission_id
 JOIN forms f ON f.id = sub.form_id
 JOIN sites s ON s.id = f.site_id
+JOIN users o ON o.id = s.owner_id
 WHERE a.id = sqlc.arg('id')
-  AND (sqlc.arg('is_admin')::bool OR s.owner_id = sqlc.arg('viewer_id'));
+  AND (s.owner_id = sqlc.arg('viewer_id')
+       OR o.org_id = sqlc.narg('admin_org_id')::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = sqlc.arg('viewer_id')));
 
 -- ListAttachmentsByForm alimente l'export en archive, dans l'ordre de l'export
 -- CSV. Sans le contenu : il est lu fichier par fichier, pour ne pas tenir en

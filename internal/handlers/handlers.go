@@ -14,6 +14,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/justinas/nosurf"
 
@@ -120,10 +121,24 @@ func paginate(path, query string, page, perPage int, total int64) (ui.Pagination
 	return ui.Pagination{Path: path, Query: query, Page: page, TotalPages: totalPages}, int32(offset)
 }
 
-// scope returns the scope of partitioned queries (…Scoped): an administrator sees
-// everything, a member only their own sites.
-func scope(u *database.User) (isAdmin bool, viewerID uuid.UUID) {
-	return auth.IsAdmin(u.Role), u.ID
+// scope is what an account reaches through the partitioned queries (…Scoped): the sites
+// it owns, the sites of its organisation if it administers it, and the sites shared with
+// it. The queries check the account's role and organisation themselves, so the scope
+// only carries what the request is made by.
+type scope struct {
+	viewerID   uuid.UUID
+	adminOrgID pgtype.UUID // valid for an organisation administrator only
+}
+
+// pgUUID converts an identifier for a nullable column or parameter.
+func pgUUID(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: id, Valid: true} }
+
+func scopeOf(u *database.User) scope {
+	sc := scope{viewerID: u.ID}
+	if u.Role == auth.RoleOrgAdmin {
+		sc.adminOrgID = u.OrgID
+	}
+	return sc
 }
 
 // searchParam reads "?q=": the input text and its nullable form for SQL.

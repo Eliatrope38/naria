@@ -235,7 +235,9 @@ templ FormPage(vm FormVM) {
 					}
 				</span>
 			</div>
-			<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/settings") } class="btn btn--ghost">{ T(ctx, "form.settings_btn") }</a>
+			if vm.Form.CanWrite {
+				<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/settings") } class="btn btn--ghost">{ T(ctx, "form.settings_btn") }</a>
+			}
 		</div>
 		if vm.Flash != "" {
 			<div role="status" aria-live="polite" class="alert alert--success">{ vm.Flash }</div>
@@ -294,10 +296,12 @@ templ FormPage(vm FormVM) {
 				<h2 class="subhead m-0">{ T(ctx, "submissions.heading", vm.Total) }</h2>
 				if vm.Total > 0 {
 					<div style="display:flex;gap:8px;flex-wrap:wrap">
-						<form method="post" action={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/read") }>
-							<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-							<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "submissions.mark_all_read") }</button>
-						</form>
+						if vm.Form.CanWrite {
+							<form method="post" action={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/read") }>
+								<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+								<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "submissions.mark_all_read") }</button>
+							</form>
+						}
 						<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/export.csv") } class="btn btn--ghost btn--sm">{ T(ctx, "submissions.export_btn") }</a>
 						if vm.HasAttachments {
 							<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/export.zip") } class="btn btn--ghost btn--sm">{ T(ctx, "submissions.export_zip_btn") }</a>
@@ -367,12 +371,14 @@ templ SubmissionPage(vm SubmissionVM) {
 					<h1 style="font-size:1.4rem;margin-bottom:2px">{ T(ctx, "submission.heading", fmtDateTime(vm.Sub.CreatedAt)) }</h1>
 					<p class="muted m-0" style="font-size:.85rem">{ vm.Sub.SiteName } · { vm.Sub.FormName }</p>
 				</div>
-				<form method="post" action={ templ.SafeURL("/submissions/" + vm.Sub.ID.String() + "/delete") } data-confirm={ T(ctx, "submission.delete_confirm") }>
-					<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
-					<button type="submit" class="btn btn--ghost btn--sm btn--icon btn--danger" aria-label={ T(ctx, "submission.delete_btn") } title={ T(ctx, "submission.delete_btn") }>
-						@iconTrash()
-					</button>
-				</form>
+				if vm.Sub.CanWrite {
+					<form method="post" action={ templ.SafeURL("/submissions/" + vm.Sub.ID.String() + "/delete") } data-confirm={ T(ctx, "submission.delete_confirm") }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<button type="submit" class="btn btn--ghost btn--sm btn--icon btn--danger" aria-label={ T(ctx, "submission.delete_btn") } title={ T(ctx, "submission.delete_btn") }>
+							@iconTrash()
+						</button>
+					</form>
+				}
 			</div>
 			if vm.Unreadable {
 				<p role="alert" class="alert alert--error m-0">{ T(ctx, "submission.unreadable_help") }</p>

@@ -18,6 +18,10 @@ import (
 	"gitlab.com/detag_inno/naria/ui"
 )
 
+// The accounts of an organisation are managed by its administrator. Every query
+// takes the organisation from the administrator's account, and only touches accounts
+// of role user: the administrator does not manage itself or other administrators here.
+
 func (a *App) UsersList(w http.ResponseWriter, r *http.Request) {
 	a.renderUsers(w, r, "")
 }
@@ -27,7 +31,7 @@ const usersPerPage = 25
 func (a *App) renderUsers(w http.ResponseWriter, r *http.Request, errMsg string) {
 	u := web.UserFrom(r.Context())
 	q, search := searchParam(r)
-	total, err := a.Q.CountUsersMatching(r.Context(), search)
+	total, err := a.Q.CountOrgUsersMatching(r.Context(), database.CountOrgUsersMatchingParams{OrgID: u.OrgID, Search: search})
 	if err != nil {
 		http.Error(w, tr(r, "common.err.load"), http.StatusInternalServerError)
 		return
@@ -37,7 +41,9 @@ func (a *App) renderUsers(w http.ResponseWriter, r *http.Request, errMsg string)
 		qs = "q=" + url.QueryEscape(q)
 	}
 	pg, offset := paginate("/users", qs, pageParam(r), usersPerPage, total)
-	list, err := a.Q.ListUsers(r.Context(), database.ListUsersParams{PageLimit: usersPerPage, PageOffset: offset, Search: search})
+	list, err := a.Q.ListOrgUsers(r.Context(), database.ListOrgUsersParams{
+		OrgID: u.OrgID, Search: search, PageLimit: usersPerPage, PageOffset: offset,
+	})
 	if err != nil {
 		http.Error(w, tr(r, "common.err.load"), http.StatusInternalServerError)
 		return
@@ -52,17 +58,14 @@ func (a *App) renderUsers(w http.ResponseWriter, r *http.Request, errMsg string)
 	renderPage(w, r, ui.UsersPage(u, rows, nosurf.Token(r), errMsg, web.PopFlash(a.Sessions, r), pg, q))
 }
 
+// CreateUser adds a user to the administrator's organisation. The role is not read
+// from the form: an organisation administrator creates users only.
 func (a *App) CreateUser(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
 	name := strings.TrimSpace(r.FormValue("name"))
 	email := auth.NormalizeEmail(r.FormValue("email"))
 	password := r.FormValue("password")
-	role := r.FormValue("role")
 
-	if !auth.ValidRole(role) {
-		a.renderUsers(w, r, tr(r, "users.err.role_invalid"))
-		return
-	}
 	minLen := a.Cfg.PasswordMinLength
 	if name == "" || email == "" || len(password) < minLen {
 		a.renderUsers(w, r, tr(r, "users.err.required", minLen))
@@ -83,7 +86,7 @@ func (a *App) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	created, err := a.Q.CreateUser(r.Context(), database.CreateUserParams{
-		Email: email, Name: name, Role: role, PasswordHash: hash,
+		Email: email, Name: name, Role: auth.RoleUser, PasswordHash: hash, OrgID: u.OrgID,
 	})
 	if err != nil {
 		a.renderUsers(w, r, tr(r, "users.err.create_failed"))
@@ -94,34 +97,27 @@ func (a *App) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Action:   auditUserCreated,
 		Entity:   auditEntityUser,
 		EntityID: refUUID(created.ID),
-		Meta:     map[string]string{"email": email, "role": role, "ip": web.ClientIP(r)},
+		Meta:     map[string]string{"email": email, "role": created.Role, "ip": web.ClientIP(r)},
 	})
 	http.Redirect(w, r, "/users", http.StatusSeeOther)
 }
 
-// targetUser loads the account "{id}". It writes the response itself on failure.
+// targetUser loads the account "{id}" of the administrator's organisation. Another
+// organisation's account, an administrator's or a missing one is the same 404.
+// It writes the response itself on failure.
 func (a *App) targetUser(w http.ResponseWriter, r *http.Request) (database.User, bool) {
+	u := web.UserFrom(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, tr(r, "common.err.bad_id"), http.StatusBadRequest)
 		return database.User{}, false
 	}
-	target, err := a.Q.GetUserByID(r.Context(), id)
+	target, err := a.Q.GetOrgUser(r.Context(), database.GetOrgUserParams{ID: id, OrgID: u.OrgID})
 	if err != nil {
 		http.Error(w, tr(r, "common.err.account_not_found"), http.StatusNotFound)
 		return database.User{}, false
 	}
 	return target, true
-}
-
-// isLastActiveAdmin: removing this account (deactivation, demotion,
-// deletion) would leave the instance without an administrator.
-func (a *App) isLastActiveAdmin(r *http.Request, target database.User) bool {
-	if target.Role != auth.RoleAdmin || !target.Active {
-		return false
-	}
-	n, err := a.Q.CountActiveAdmins(r.Context())
-	return err != nil || n <= 1
 }
 
 func (a *App) ToggleUser(w http.ResponseWriter, r *http.Request) {
@@ -130,17 +126,11 @@ func (a *App) ToggleUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if target.ID == u.ID {
-		http.Error(w, tr(r, "users.err.self_deactivate"), http.StatusForbidden)
-		return
-	}
 	newActive := !target.Active
-	if !newActive && a.isLastActiveAdmin(r, target) {
-		web.Flash(a.Sessions, r, tr(r, "users.flash.last_admin"))
-		http.Redirect(w, r, "/users", http.StatusSeeOther)
-		return
-	}
-	if err := a.Q.SetUserActive(r.Context(), database.SetUserActiveParams{ID: target.ID, Active: newActive}); err != nil {
+	n, err := a.Q.SetUserActiveScoped(r.Context(), database.SetUserActiveScopedParams{
+		ID: target.ID, Active: newActive, AdminOrgID: u.OrgID,
+	})
+	if err != nil || n == 0 {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}
@@ -158,42 +148,6 @@ func (a *App) ToggleUser(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/users", http.StatusSeeOther)
 }
 
-func (a *App) ChangeUserRole(w http.ResponseWriter, r *http.Request) {
-	u := web.UserFrom(r.Context())
-	target, ok := a.targetUser(w, r)
-	if !ok {
-		return
-	}
-	if target.ID == u.ID { // a user does not change their own role (risk of losing access)
-		web.Flash(a.Sessions, r, tr(r, "users.flash.self_role"))
-		http.Redirect(w, r, "/users", http.StatusSeeOther)
-		return
-	}
-	role := r.FormValue("role")
-	if !auth.ValidRole(role) {
-		http.Error(w, tr(r, "users.err.role_invalid"), http.StatusBadRequest)
-		return
-	}
-	if role != auth.RoleAdmin && a.isLastActiveAdmin(r, target) {
-		web.Flash(a.Sessions, r, tr(r, "users.flash.last_admin"))
-		http.Redirect(w, r, "/users", http.StatusSeeOther)
-		return
-	}
-	if err := a.Q.SetUserRole(r.Context(), database.SetUserRoleParams{ID: target.ID, Role: role}); err != nil {
-		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
-		return
-	}
-	a.audit(r.Context(), auditEntry{
-		ActorID:  refUUID(u.ID),
-		Action:   auditUserRoleChanged,
-		Entity:   auditEntityUser,
-		EntityID: refUUID(target.ID),
-		Meta:     map[string]string{"email": target.Email, "from": target.Role, "to": role, "ip": web.ClientIP(r)},
-	})
-	web.Flash(a.Sessions, r, tr(r, "users.flash.role_updated", target.Name))
-	http.Redirect(w, r, "/users", http.StatusSeeOther)
-}
-
 func (a *App) EditUserName(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
 	target, ok := a.targetUser(w, r)
@@ -206,7 +160,10 @@ func (a *App) EditUserName(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/users", http.StatusSeeOther)
 		return
 	}
-	if err := a.Q.UpdateUserName(r.Context(), database.UpdateUserNameParams{ID: target.ID, Name: name}); err != nil {
+	n, err := a.Q.UpdateUserNameScoped(r.Context(), database.UpdateUserNameScopedParams{
+		ID: target.ID, Name: name, AdminOrgID: u.OrgID,
+	})
+	if err != nil || n == 0 {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}
@@ -229,17 +186,8 @@ func (a *App) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if target.ID == u.ID {
-		web.Flash(a.Sessions, r, tr(r, "users.flash.self_delete"))
-		http.Redirect(w, r, "/users", http.StatusSeeOther)
-		return
-	}
-	if a.isLastActiveAdmin(r, target) {
-		web.Flash(a.Sessions, r, tr(r, "users.flash.last_admin"))
-		http.Redirect(w, r, "/users", http.StatusSeeOther)
-		return
-	}
-	if err := a.Q.DeleteUser(r.Context(), target.ID); err != nil {
+	n, err := a.Q.DeleteUserScoped(r.Context(), database.DeleteUserScopedParams{ID: target.ID, AdminOrgID: u.OrgID})
+	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 			web.Flash(a.Sessions, r, tr(r, "users.flash.delete_has_refs"))
@@ -247,6 +195,10 @@ func (a *App) DeleteUser(w http.ResponseWriter, r *http.Request) {
 			web.Flash(a.Sessions, r, tr(r, "users.flash.delete_failed"))
 		}
 		http.Redirect(w, r, "/users", http.StatusSeeOther)
+		return
+	}
+	if n == 0 {
+		http.Error(w, tr(r, "common.err.account_not_found"), http.StatusNotFound)
 		return
 	}
 	a.audit(r.Context(), auditEntry{
@@ -266,7 +218,8 @@ func (a *App) ResetUser2FA(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := a.Q.DisableUserTOTP(r.Context(), target.ID); err != nil {
+	n, err := a.Q.DisableUserTOTPScoped(r.Context(), database.DisableUserTOTPScopedParams{ID: target.ID, AdminOrgID: u.OrgID})
+	if err != nil || n == 0 {
 		http.Error(w, tr(r, "common.err.reset"), http.StatusInternalServerError)
 		return
 	}
@@ -299,7 +252,10 @@ func (a *App) SetUserPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, tr(r, "common.err.internal"), http.StatusInternalServerError)
 		return
 	}
-	if err := a.Q.SetUserPassword(r.Context(), database.SetUserPasswordParams{ID: target.ID, PasswordHash: hash}); err != nil {
+	n, err := a.Q.SetUserPasswordScoped(r.Context(), database.SetUserPasswordScopedParams{
+		ID: target.ID, PasswordHash: hash, AdminOrgID: u.OrgID,
+	})
+	if err != nil || n == 0 {
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}

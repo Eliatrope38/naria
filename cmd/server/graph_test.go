@@ -93,7 +93,7 @@ func TestGraphPiecesJointes(t *testing.T) {
 	ms.RefuseSend(0, "", "")
 
 	c := newClient()
-	login(t, c, e.url, "admin@naria.test")
+	login(t, c, e.url, e.fx.orgAdmin.Email)
 	if _, page := get(t, c, e.url+"/forms/"+e.fx.formB.ID.String()+"/settings"); !strings.Contains(page, "Un email en porte 2 Mo au plus") {
 		t.Errorf("réglages : la limite des fichiers par email n'est pas annoncée")
 	}

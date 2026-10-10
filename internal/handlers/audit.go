@@ -37,12 +37,17 @@ const (
 	auditFormKeyRegenerated     = "form.key_regenerated"
 	auditSubmissionsPurged      = "form.submissions_purged"
 	auditSubmissionsExported    = "form.submissions_exported"
+	auditOrgCreated             = "org.created"
+	auditOrgAdminReplaced       = "org.admin_replaced"
+	auditReadGranted            = "site.read_granted"
+	auditReadRevoked            = "site.read_revoked"
 )
 
 const (
 	auditEntityUser = "user"
 	auditEntitySite = "site"
 	auditEntityForm = "form"
+	auditEntityOrg  = "organisation"
 )
 
 // auditEntry describes an event. A nil *uuid.UUID becomes NULL in the database: an

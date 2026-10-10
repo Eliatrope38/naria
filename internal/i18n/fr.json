@@ -5,7 +5,6 @@
   "nav.account": "Mon compte",
   "nav.logout": "Déconnexion",
   "nav.sites": "Sites",
-
   "footer.support": "Support",
   "footer.version": "version",
   "footer.online": "en ligne",
@@ -14,15 +13,12 @@
   "footer.open_source": "(projet open source)",
   "footer.privacy": "Confidentialité",
   "footer.legal": "Mentions légales",
-
   "lang.label": "Langue",
   "lang.fr": "Français",
   "lang.en": "Anglais",
   "lang.it": "Italien",
   "lang.de": "Allemand",
-
   "theme.toggle": "Thème clair / sombre",
-
   "common.optional": "(optionnel)",
   "common.actions": "Actions",
   "common.enabled": "Activée",
@@ -40,7 +36,6 @@
   "size.bytes": "%d o",
   "size.kb": "%d Ko",
   "size.mb": "%d,%d Mo",
-
   "login.title": "Connexion",
   "login.heading": "Connexion",
   "login.email": "Email",
@@ -56,7 +51,6 @@
   "login.verify.submit": "Valider",
   "login.verify.err.bad": "Code incorrect, réessayez.",
   "login.forgot_link": "Mot de passe oublié ?",
-
   "forgot.title": "Mot de passe oublié",
   "forgot.heading": "Mot de passe oublié",
   "forgot.help": "Indiquez l'adresse e-mail de votre compte. Si elle est connue, vous recevrez un lien pour choisir un nouveau mot de passe.",
@@ -67,7 +61,6 @@
   "forgot.email.intro": "Bonjour %s, une réinitialisation du mot de passe de votre compte a été demandée.",
   "forgot.email.note": "Ce lien est valable une heure et ne sert qu'une fois. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail : votre mot de passe reste inchangé.",
   "forgot.email.button": "Choisir un nouveau mot de passe",
-
   "reset.title": "Nouveau mot de passe",
   "reset.heading": "Nouveau mot de passe",
   "reset.password": "Nouveau mot de passe",
@@ -77,7 +70,6 @@
   "reset.err.invalid": "Ce lien est invalide, déjà utilisé ou expiré.",
   "reset.request_again": "Demander un nouveau lien",
   "reset.done": "Mot de passe modifié. Vous pouvez vous connecter.",
-
   "account.title": "Mon compte",
   "account.heading": "Mon compte",
   "account.name": "Nom",
@@ -113,7 +105,6 @@
   "account.err.enable": "Erreur d'activation",
   "account.err.codes_gen": "Erreur de génération des codes de secours",
   "account.err.disable": "Erreur de désactivation",
-
   "codes.title": "Codes de secours",
   "codes.heading": "Codes de secours",
   "codes.warn_lead": "Conservez ces codes en lieu sûr. Chacun n'est utilisable",
@@ -121,7 +112,6 @@
   "codes.warn_mid": "pour vous connecter en cas de perte de votre téléphone. Ils ne seront",
   "codes.warn_never": "plus jamais affichés",
   "codes.saved_btn": "J'ai enregistré mes codes",
-
   "setup.title": "Activer la 2FA",
   "setup.back": "← Mon compte",
   "setup.heading": "Activer la double authentification",
@@ -131,15 +121,11 @@
   "setup.manual": "Saisie manuelle :",
   "setup.code_label": "Code de vérification",
   "setup.confirm_btn": "Confirmer",
-
-  "role.member": "Membre",
-  "role.admin": "Administrateur",
-
+  "role.admin": "Administrateur de plateforme",
   "pagination.aria": "Pagination",
   "pagination.prev": "← Précédent",
   "pagination.next": "Suivant →",
   "pagination.page": "Page %d sur %d",
-
   "sites.title": "Sites",
   "sites.subtitle": "Les sites dont vous recevez les formulaires.",
   "sites.new": "Nouveau site",
@@ -152,7 +138,6 @@
   "sites.col.owner": "Propriétaire",
   "sites.col.forms": "Formulaires",
   "sites.col.unread": "Non lues",
-
   "site.back": "← Tous les sites",
   "site.name_label": "Nom du site",
   "site.domains_label": "Domaines autorisés",
@@ -170,7 +155,7 @@
   "site.settings_heading": "Réglages du site",
   "site.owner_label": "Propriétaire",
   "site.owner_btn": "Transférer",
-  "site.owner_help": "Le propriétaire gère le site, ses formulaires et lit leurs soumissions.",
+  "site.owner_help": "L'administrateur de l'organisation peut transférer le site à un autre utilisateur de l'organisation. L'ancien propriétaire perd tout accès.",
   "site.delete_heading": "Supprimer le site",
   "site.delete_help": "Supprime aussi ses formulaires et toutes leurs soumissions. Irréversible.",
   "site.delete_btn": "Supprimer le site",
@@ -216,7 +201,6 @@
   "api.err.json_field": "Champ inconnu : %s.",
   "api.err.too_large": "Corps trop volumineux.",
   "api.err.too_many_forms": "Ce site compte déjà %d formulaires : l'API n'en crée pas davantage.",
-
   "form.new.title": "Nouveau formulaire",
   "form.settings.title": "Réglages du formulaire",
   "form.settings_btn": "Réglages",
@@ -330,21 +314,18 @@
   "form.err.telegram_pair": "Telegram : le jeton du bot et l'identifiant de la discussion vont ensemble. Renseignez les deux, ou aucun.",
   "form.err.telegram_token": "Jeton Telegram invalide : il a la forme 123456789:AA…, tel que le donne @BotFather.",
   "form.err.telegram_chat": "Identifiant Telegram invalide : il faut un nombre (négatif pour un groupe ou un canal) ou @nomducanal.",
-
   "submissions.heading": "Soumissions (%d)",
   "submissions.mark_all_read": "Tout marquer comme lu",
   "submissions.export_btn": "Exporter en CSV",
   "submissions.export_zip_btn": "Exporter avec les pièces jointes",
   "submissions.empty": "Aucune soumission pour l'instant.",
   "submissions.empty_hint": "Elles apparaîtront ici dès le premier envoi depuis votre site.",
-
   "export.csv_name": "soumissions.csv",
   "export.folder": "pieces-jointes",
   "export.folder_col": "Dossier des pièces jointes",
   "export.err.busy": "Trop d'exports en cours. Réessayez dans une minute.",
   "export.missing_name": "fichiers-manquants.txt",
   "export.missing_intro": "Ces pièces jointes n'ont pas pu être lues et manquent dans l'archive :",
-
   "submission.title": "Soumission",
   "submission.heading": "Soumission du %s",
   "submission.col.received": "Reçue le",
@@ -361,7 +342,6 @@
   "submission.attachments": "Pièces jointes",
   "submission.err.attachment_not_found": "Pièce jointe introuvable",
   "submission.err.attachment_unreadable": "Cette pièce jointe ne peut pas être déchiffrée.",
-
   "submit.ok": "Merci, votre message a bien été envoyé.",
   "submit.page.ok_title": "Message envoyé",
   "submit.page.err_title": "Envoi impossible",
@@ -388,7 +368,6 @@
   "submit.err.empty": "Le formulaire est vide.",
   "submit.err.unavailable": "Le message n'a pas pu être remis. Réessayez dans un instant.",
   "submit.err.internal": "Erreur interne. Réessayez dans un instant.",
-
   "mail.submission.subject": "[%s] Nouvelle soumission : %s",
   "mail.submission.intro": "Nouvelle soumission du formulaire « %s » sur le site « %s ».",
   "mail.submission.no_content": "Son contenu n'est pas inclus dans cet email : consultez-le dans l'interface.",
@@ -404,7 +383,6 @@
   "mail.captcha.subject": "[%s] Envoi refusé faute de vérification anti-robot : %s",
   "mail.captcha.intro": "Le formulaire « %s » du site « %s » a refusé l'envoi d'un visiteur : son navigateur n'a pas fait la vérification anti-robot.",
   "mail.captcha.note": "Si la page du formulaire ne charge pas le script de vérification, tous ses envois sont refusés. Un robot qui imite un navigateur peut aussi provoquer cette alerte : un message de test envoyé depuis le site tranche. Elle part au plus une fois par jour.",
-
   "chat.submission.title": "Nouvelle soumission : %s",
   "chat.submission.note_stored": "Consultez-la dans l'interface.",
   "chat.submission.note_email": "Son contenu a été envoyé par email.",
@@ -412,7 +390,6 @@
   "chat.submission.link": "Voir la soumission",
   "chat.test.title": "Message de test : %s",
   "chat.test.note": "Ce canal recevra une alerte à chaque soumission de ce formulaire.",
-
   "users.title": "Utilisateurs",
   "users.search_ph": "Rechercher un nom ou un e-mail…",
   "users.new": "Nouveau compte",
@@ -420,8 +397,6 @@
   "users.email": "Email",
   "users.password_initial": "Mot de passe initial",
   "users.role": "Rôle",
-  "users.role_help_summary": "Que fait chaque rôle ?",
-  "users.role_help": "Membre : crée et gère ses propres sites, leurs formulaires et leurs soumissions.\nAdministrateur : voit tous les sites de l'instance et administre les comptes.",
   "users.create_btn": "Créer le compte",
   "users.col.2fa": "2FA",
   "users.col.status": "Statut",
@@ -456,5 +431,38 @@
   "users.err.create_failed": "Impossible de créer le compte.",
   "users.err.required": "Nom, email et mot de passe (%d caractères min.) sont obligatoires.",
   "users.col.sites": "Sites",
-  "users.err.self_deactivate": "Vous ne pouvez pas désactiver votre propre compte"
+  "users.err.self_deactivate": "Vous ne pouvez pas désactiver votre propre compte",
+  "nav.organisations": "Organisations",
+  "orgs.title": "Organisations",
+  "orgs.new": "Nouvelle organisation",
+  "orgs.new_help": "Le compte administrateur est créé avec l'organisation. Transmettez-lui son mot de passe initial hors de Naria.",
+  "orgs.name": "Nom de l'organisation",
+  "orgs.create_btn": "Créer l'organisation",
+  "orgs.col.name": "Organisation",
+  "orgs.col.admin": "Administrateur",
+  "orgs.col.created": "Créée le",
+  "orgs.no_admin": "Aucun administrateur",
+  "orgs.none": "Aucune organisation.",
+  "orgs.replace_admin_btn": "Remplacer l'administrateur",
+  "orgs.replace_admin_confirm": "Remplacer l'administrateur de %s ? L'administrateur actuel devient un utilisateur simple.",
+  "orgs.err.name_required": "Le nom de l'organisation est requis.",
+  "orgs.err.not_found": "Organisation introuvable.",
+  "orgs.flash.created": "Organisation %s créée.",
+  "orgs.flash.admin_replaced": "Administrateur remplacé.",
+  "users.create_help": "Le compte est créé comme utilisateur de votre organisation. Transmettez-lui son mot de passe initial hors de Naria.",
+  "sites.shared_badge": "Partagé",
+  "site.shared_notice": "Ce site vous est partagé en lecture : vous voyez ses formulaires et leurs soumissions, sans pouvoir le modifier.",
+  "site.readers_heading": "Lecture des soumissions",
+  "site.readers_intro": "Ces utilisateurs de l'organisation lisent les soumissions de tous les formulaires de ce site, sans pouvoir le modifier.",
+  "site.readers_empty": "Aucun utilisateur n'a de lecture sur ce site.",
+  "site.readers_add_label": "Accorder la lecture à",
+  "site.readers_add_btn": "Accorder la lecture",
+  "site.readers_remove_btn": "Retirer",
+  "site.readers_remove_confirm": "Retirer la lecture à %s ?",
+  "site.readers_none_available": "Aucun utilisateur actif de l'organisation à qui accorder la lecture.",
+  "site.flash.reader_added": "Lecture accordée.",
+  "site.flash.reader_refused": "Lecture non accordée : ce compte n'est pas un utilisateur actif de l'organisation, ou il est déjà propriétaire du site.",
+  "site.flash.reader_removed": "Lecture retirée.",
+  "role.admin_orga": "Administrateur d'organisation",
+  "role.user": "Utilisateur"
 }

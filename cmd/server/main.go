@@ -302,9 +302,9 @@ func buildRouter(app *handlers.App, cfg config.Config, staticFS fs.FS) http.Hand
 		r.Group(func(r chi.Router) {
 			r.Use(web.RequireAuth)
 
-			// Sites. Account isolation (a member only sees their own sites) is enforced in
-			// the queries, not by a middleware: each handler loads its resource within the
-			// user's scope.
+			// Account isolation (an account sees the sites it owns, its organisation's sites
+			// if it administers them, and those shared with it) is enforced in the queries,
+			// not by a middleware: each handler loads its resource within the user's scope.
 			r.Get("/", app.SiteList)
 			r.Post("/sites", app.CreateSite)
 			r.Get("/sites/{id}", app.SiteDetail)
@@ -312,6 +312,9 @@ func buildRouter(app *handlers.App, cfg config.Config, staticFS fs.FS) http.Hand
 			r.Post("/sites/{id}/delete", app.DeleteSite)
 			r.Post("/sites/{id}/tokens", app.CreateAPIToken)
 			r.Post("/sites/{id}/tokens/{token}/delete", app.RevokeAPIToken)
+			r.Post("/sites/{id}/owner", app.SetSiteOwner)
+			r.Post("/sites/{id}/readers", app.GrantSiteRead)
+			r.Post("/sites/{id}/readers/{user}/delete", app.RevokeSiteRead)
 
 			r.Get("/sites/{id}/forms/new", app.NewForm)
 			r.Post("/sites/{id}/forms", app.CreateForm)
@@ -338,17 +341,24 @@ func buildRouter(app *handlers.App, cfg config.Config, staticFS fs.FS) http.Hand
 			r.Post("/account/2fa/enable", app.TOTPEnable)
 			r.Post("/account/2fa/disable", app.TOTPDisable)
 
+			// The organisation's accounts, managed by its administrator.
 			r.Group(func(r chi.Router) {
-				r.Use(web.RequireRole(auth.RoleAdmin))
+				r.Use(web.RequireRole(auth.RoleOrgAdmin))
 				r.Get("/users", app.UsersList)
 				r.Post("/users", app.CreateUser)
 				r.Post("/users/{id}/toggle", app.ToggleUser)
-				r.Post("/users/{id}/role", app.ChangeUserRole)
 				r.Post("/users/{id}/name", app.EditUserName)
 				r.Post("/users/{id}/delete", app.DeleteUser)
 				r.Post("/users/{id}/reset-2fa", app.ResetUser2FA)
 				r.Post("/users/{id}/password", app.SetUserPassword)
-				r.Post("/sites/{id}/owner", app.SetSiteOwner)
+			})
+
+			// Organisations, managed by the platform administrator. It has no site.
+			r.Group(func(r chi.Router) {
+				r.Use(web.RequireRole(auth.RoleAdmin))
+				r.Get("/organisations", app.OrganisationsList)
+				r.Post("/organisations", app.CreateOrganisation)
+				r.Post("/organisations/{id}/admin", app.ReplaceOrgAdmin)
 			})
 		})
 	})

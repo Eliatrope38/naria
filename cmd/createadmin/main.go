@@ -22,7 +22,7 @@ func main() {
 	email := flag.String("email", "", "email du compte")
 	name := flag.String("name", "", "nom affiché")
 	password := flag.String("password", "", "mot de passe")
-	role := flag.String("role", auth.RoleAdmin, "rôle: admin ou member")
+	role := flag.String("role", auth.RoleAdmin, "rôle: admin (administrateur de plateforme) ; les administrateurs d'organisation se créent depuis /organisations")
 	dsn := flag.String("dsn", "", "DATABASE_URL (sinon variable d'env)")
 	flag.Parse()
 
@@ -38,8 +38,9 @@ func main() {
 	if minLen := config.PasswordMinLength(); len(pass) < minLen {
 		log.Fatalf("le mot de passe doit faire au moins %d caractères", minLen)
 	}
-	if !auth.ValidRole(*role) {
-		log.Fatal("le rôle doit être 'admin' ou 'member'")
+	// An organisation's administrator needs an organisation, which this command does not set.
+	if *role != auth.RoleAdmin {
+		log.Fatal("le rôle doit être 'admin' : les autres comptes se créent depuis l'interface")
 	}
 	connStr := *dsn
 	if connStr == "" {

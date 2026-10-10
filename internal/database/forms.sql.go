@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countFormsBySite = `-- name: CountFormsBySite :one
@@ -101,13 +102,26 @@ func (q *Queries) CreateForm(ctx context.Context, arg CreateFormParams) (Form, e
 	return i, err
 }
 
-const deleteForm = `-- name: DeleteForm :exec
-DELETE FROM forms WHERE id = $1
+const deleteFormScoped = `-- name: DeleteFormScoped :execrows
+DELETE FROM forms
+WHERE forms.id = $1
+  AND forms.site_id IN (SELECT s.id FROM sites s
+                  WHERE s.owner_id = $2
+                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $3::uuid))
 `
 
-func (q *Queries) DeleteForm(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteForm, id)
-	return err
+type DeleteFormScopedParams struct {
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+}
+
+func (q *Queries) DeleteFormScoped(ctx context.Context, arg DeleteFormScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFormScoped, arg.ID, arg.ViewerID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getFormByAccessKey = `-- name: GetFormByAccessKey :one
@@ -179,17 +193,21 @@ func (q *Queries) GetFormByAccessKey(ctx context.Context, accessKey string) (Get
 }
 
 const getFormScoped = `-- name: GetFormScoped :one
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, s.name AS site_name, s.domains AS site_domains
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, s.name AS site_name, s.domains AS site_domains,
+       coalesce(s.owner_id = $1 OR o.org_id = $2::uuid, false)::bool AS can_write
 FROM forms f
 JOIN sites s ON s.id = f.site_id
-WHERE f.id = $1
-  AND ($2::bool OR s.owner_id = $3)
+JOIN users o ON o.id = s.owner_id
+WHERE f.id = $3
+  AND (s.owner_id = $1
+       OR o.org_id = $2::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = $1))
 `
 
 type GetFormScopedParams struct {
-	ID       uuid.UUID
-	IsAdmin  bool
-	ViewerID uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
+	ID         uuid.UUID
 }
 
 type GetFormScopedRow struct {
@@ -217,12 +235,12 @@ type GetFormScopedRow struct {
 	NotificationLang    string
 	SiteName            string
 	SiteDomains         []string
+	CanWrite            bool
 }
 
-// Même règle de cloisonnement que sites.sql : le périmètre du demandeur est
-// vérifié dans la requête, via le site propriétaire du formulaire.
+// Même règle de cloisonnement que sites.sql, appliquée au site du formulaire.
 func (q *Queries) GetFormScoped(ctx context.Context, arg GetFormScopedParams) (GetFormScopedRow, error) {
-	row := q.db.QueryRow(ctx, getFormScoped, arg.ID, arg.IsAdmin, arg.ViewerID)
+	row := q.db.QueryRow(ctx, getFormScoped, arg.ViewerID, arg.AdminOrgID, arg.ID)
 	var i GetFormScopedRow
 	err := row.Scan(
 		&i.ID,
@@ -249,6 +267,7 @@ func (q *Queries) GetFormScoped(ctx context.Context, arg GetFormScopedParams) (G
 		&i.NotificationLang,
 		&i.SiteName,
 		&i.SiteDomains,
+		&i.CanWrite,
 	)
 	return i, err
 }
@@ -383,32 +402,52 @@ func (q *Queries) ListFormsOfSite(ctx context.Context, siteID uuid.UUID) ([]Form
 	return items, nil
 }
 
-const setFormAccessKey = `-- name: SetFormAccessKey :exec
-UPDATE forms SET access_key = $2, updated_at = now() WHERE id = $1
+const setFormAccessKeyScoped = `-- name: SetFormAccessKeyScoped :execrows
+UPDATE forms SET access_key = $1, updated_at = now()
+WHERE forms.id = $2
+  AND forms.site_id IN (SELECT s.id FROM sites s
+                  WHERE s.owner_id = $3
+                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $4::uuid))
 `
 
-type SetFormAccessKeyParams struct {
-	ID        uuid.UUID
-	AccessKey string
+type SetFormAccessKeyScopedParams struct {
+	AccessKey  string
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
-func (q *Queries) SetFormAccessKey(ctx context.Context, arg SetFormAccessKeyParams) error {
-	_, err := q.db.Exec(ctx, setFormAccessKey, arg.ID, arg.AccessKey)
-	return err
+func (q *Queries) SetFormAccessKeyScoped(ctx context.Context, arg SetFormAccessKeyScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setFormAccessKeyScoped,
+		arg.AccessKey,
+		arg.ID,
+		arg.ViewerID,
+		arg.AdminOrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const updateForm = `-- name: UpdateForm :exec
+const updateFormScoped = `-- name: UpdateFormScoped :execrows
 UPDATE forms
-SET name = $2, active = $3, notify_email = $4, recipients = $5, email_include_content = $6,
-    store_submissions = $7, retention_days = $8, redirect_url = $9,
-    slack_webhook_url = $10, teams_webhook_url = $11, discord_webhook_url = $12, chat_include_content = $13,
-    telegram_bot_token = $14, telegram_chat_id = $15, accept_attachments = $16, captcha = $17,
-    notification_lang = $18, updated_at = now()
-WHERE id = $1
+SET name = $1, active = $2, notify_email = $3,
+    recipients = $4, email_include_content = $5,
+    store_submissions = $6, retention_days = $7,
+    redirect_url = $8,
+    slack_webhook_url = $9, teams_webhook_url = $10,
+    discord_webhook_url = $11, chat_include_content = $12,
+    telegram_bot_token = $13, telegram_chat_id = $14,
+    accept_attachments = $15, captcha = $16,
+    notification_lang = $17, updated_at = now()
+WHERE forms.id = $18
+  AND forms.site_id IN (SELECT s.id FROM sites s
+                  WHERE s.owner_id = $19
+                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $20::uuid))
 `
 
-type UpdateFormParams struct {
-	ID                  uuid.UUID
+type UpdateFormScopedParams struct {
 	Name                string
 	Active              bool
 	NotifyEmail         bool
@@ -426,11 +465,15 @@ type UpdateFormParams struct {
 	AcceptAttachments   bool
 	Captcha             bool
 	NotificationLang    string
+	ID                  uuid.UUID
+	ViewerID            uuid.UUID
+	AdminOrgID          pgtype.UUID
 }
 
-func (q *Queries) UpdateForm(ctx context.Context, arg UpdateFormParams) error {
-	_, err := q.db.Exec(ctx, updateForm,
-		arg.ID,
+// Écritures sur un formulaire : même condition d'écriture que sites.sql, par le
+// site du formulaire. Une lecture seule ne les passe jamais.
+func (q *Queries) UpdateFormScoped(ctx context.Context, arg UpdateFormScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateFormScoped,
 		arg.Name,
 		arg.Active,
 		arg.NotifyEmail,
@@ -448,6 +491,12 @@ func (q *Queries) UpdateForm(ctx context.Context, arg UpdateFormParams) error {
 		arg.AcceptAttachments,
 		arg.Captcha,
 		arg.NotificationLang,
+		arg.ID,
+		arg.ViewerID,
+		arg.AdminOrgID,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

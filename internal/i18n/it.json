@@ -5,7 +5,6 @@
   "nav.account": "Il mio account",
   "nav.logout": "Esci",
   "nav.sites": "Siti",
-
   "footer.support": "Supporto",
   "footer.version": "versione",
   "footer.online": "online",
@@ -14,15 +13,12 @@
   "footer.open_source": "(progetto open source)",
   "footer.privacy": "Privacy",
   "footer.legal": "Note legali",
-
   "lang.label": "Lingua",
   "lang.fr": "Francese",
   "lang.en": "Inglese",
   "lang.it": "Italiano",
   "lang.de": "Tedesco",
-
   "theme.toggle": "Tema chiaro / scuro",
-
   "common.optional": "(facoltativo)",
   "common.actions": "Azioni",
   "common.enabled": "Attivato",
@@ -40,7 +36,6 @@
   "size.bytes": "%d B",
   "size.kb": "%d KB",
   "size.mb": "%d,%d MB",
-
   "login.title": "Accesso",
   "login.heading": "Accesso",
   "login.email": "Email",
@@ -56,7 +51,6 @@
   "login.verify.submit": "Convalida",
   "login.verify.err.bad": "Codice non corretto, riprovi.",
   "login.forgot_link": "Password dimenticata?",
-
   "forgot.title": "Password dimenticata",
   "forgot.heading": "Password dimenticata",
   "forgot.help": "Inserisca l'indirizzo email del Suo account. Se è noto, riceverà un link per scegliere una nuova password.",
@@ -67,7 +61,6 @@
   "forgot.email.intro": "Buongiorno %s, è stata richiesta la reimpostazione della password del Suo account.",
   "forgot.email.note": "Questo link è valido per un'ora e può essere usato una sola volta. Se non ha fatto Lei la richiesta, ignori questa email: la password resta invariata.",
   "forgot.email.button": "Scegliere una nuova password",
-
   "reset.title": "Nuova password",
   "reset.heading": "Nuova password",
   "reset.password": "Nuova password",
@@ -77,7 +70,6 @@
   "reset.err.invalid": "Questo link non è valido, è già stato usato o è scaduto.",
   "reset.request_again": "Richieda un nuovo link",
   "reset.done": "Password modificata. Può accedere.",
-
   "account.title": "Il mio account",
   "account.heading": "Il mio account",
   "account.name": "Nome",
@@ -113,7 +105,6 @@
   "account.err.enable": "Errore di attivazione",
   "account.err.codes_gen": "Errore di generazione dei codici di backup",
   "account.err.disable": "Errore di disattivazione",
-
   "codes.title": "Codici di backup",
   "codes.heading": "Codici di backup",
   "codes.warn_lead": "Conservi questi codici in un luogo sicuro. Ciascuno può essere usato",
@@ -121,7 +112,6 @@
   "codes.warn_mid": "per accedere in caso di perdita del telefono. Non saranno",
   "codes.warn_never": "mai più mostrati",
   "codes.saved_btn": "Ho salvato i miei codici",
-
   "setup.title": "Attiva 2FA",
   "setup.back": "← Il mio account",
   "setup.heading": "Attivare l'autenticazione a due fattori",
@@ -131,15 +121,11 @@
   "setup.manual": "Inserimento manuale:",
   "setup.code_label": "Codice di verifica",
   "setup.confirm_btn": "Conferma",
-
-  "role.member": "Membro",
-  "role.admin": "Amministratore",
-
+  "role.admin": "Amministratore di piattaforma",
   "pagination.aria": "Paginazione",
   "pagination.prev": "← Precedente",
   "pagination.next": "Successiva →",
   "pagination.page": "Pagina %d di %d",
-
   "sites.title": "Siti",
   "sites.subtitle": "I siti di cui riceve i moduli.",
   "sites.new": "Nuovo sito",
@@ -152,7 +138,6 @@
   "sites.col.owner": "Proprietario",
   "sites.col.forms": "Moduli",
   "sites.col.unread": "Non letti",
-
   "site.back": "← Tutti i siti",
   "site.name_label": "Nome del sito",
   "site.domains_label": "Domini autorizzati",
@@ -170,7 +155,7 @@
   "site.settings_heading": "Impostazioni del sito",
   "site.owner_label": "Proprietario",
   "site.owner_btn": "Trasferisci",
-  "site.owner_help": "Il proprietario gestisce il sito e i suoi moduli, e legge i loro invii.",
+  "site.owner_help": "L'amministratore dell'organizzazione può trasferire il sito a un altro utente dell'organizzazione. Il precedente proprietario perde ogni accesso.",
   "site.delete_heading": "Elimina sito",
   "site.delete_help": "Elimina anche i suoi moduli e tutti i loro invii. Irreversibile.",
   "site.delete_btn": "Elimina sito",
@@ -216,7 +201,6 @@
   "api.err.json_field": "Campo sconosciuto: %s.",
   "api.err.too_large": "Corpo troppo grande.",
   "api.err.too_many_forms": "Questo sito ha già %d moduli: l'API non ne crea altri.",
-
   "form.new.title": "Nuovo modulo",
   "form.settings.title": "Impostazioni del modulo",
   "form.settings_btn": "Impostazioni",
@@ -330,21 +314,18 @@
   "form.err.telegram_pair": "Telegram: il token del bot e l'ID della chat vanno insieme. Li inserisca entrambi, oppure nessuno.",
   "form.err.telegram_token": "Token Telegram non valido: ha la forma 123456789:AA…, come fornito da @BotFather.",
   "form.err.telegram_chat": "ID della chat Telegram non valido: serve un numero (negativo per un gruppo o un canale) oppure @nomecanale.",
-
   "submissions.heading": "Invii (%d)",
   "submissions.mark_all_read": "Segna tutto come letto",
   "submissions.export_btn": "Esporta in CSV",
   "submissions.export_zip_btn": "Esporta con gli allegati",
   "submissions.empty": "Nessun invio per ora.",
   "submissions.empty_hint": "Compariranno qui appena il sito ne invierà uno.",
-
   "export.csv_name": "invii.csv",
   "export.folder": "allegati",
   "export.folder_col": "Cartella degli allegati",
   "export.err.busy": "Troppe esportazioni in corso. Riprovi tra un minuto.",
   "export.missing_name": "file-mancanti.txt",
   "export.missing_intro": "Questi allegati non hanno potuto essere letti e mancano nell'archivio:",
-
   "submission.title": "Invio",
   "submission.heading": "Invio del %s",
   "submission.col.received": "Ricevuto il",
@@ -361,7 +342,6 @@
   "submission.attachments": "Allegati",
   "submission.err.attachment_not_found": "Allegato non trovato",
   "submission.err.attachment_unreadable": "Questo allegato non può essere decifrato.",
-
   "submit.ok": "Grazie, il suo messaggio è stato inviato.",
   "submit.page.ok_title": "Messaggio inviato",
   "submit.page.err_title": "Invio non riuscito",
@@ -388,7 +368,6 @@
   "submit.err.empty": "Il modulo è vuoto.",
   "submit.err.unavailable": "Il messaggio non ha potuto essere consegnato. Riprovi tra un momento.",
   "submit.err.internal": "Errore interno. Riprovi tra un momento.",
-
   "mail.submission.subject": "[%s] Nuovo invio: %s",
   "mail.submission.intro": "Nuovo invio del modulo « %s » sul sito « %s ».",
   "mail.submission.no_content": "Il contenuto non è incluso in questa email: lo consulti nell'interfaccia.",
@@ -404,7 +383,6 @@
   "mail.captcha.subject": "[%s] Invio rifiutato per mancanza della verifica anti-robot: %s",
   "mail.captcha.intro": "Il modulo « %s » del sito « %s » ha rifiutato l'invio di un visitatore: il suo browser non ha eseguito la verifica anti-robot.",
   "mail.captcha.note": "Se la pagina del modulo non carica lo script di verifica, tutti i suoi invii sono rifiutati. Un robot che imita un browser può anche provocare questo avviso: un messaggio di prova inviato dal sito lo chiarisce. Viene inviato al massimo una volta al giorno.",
-
   "chat.submission.title": "Nuovo invio: %s",
   "chat.submission.note_stored": "Lo consulti nell'interfaccia.",
   "chat.submission.note_email": "Il contenuto è stato inviato via email.",
@@ -412,7 +390,6 @@
   "chat.submission.link": "Vedi l'invio",
   "chat.test.title": "Messaggio di prova: %s",
   "chat.test.note": "Questo canale riceverà un avviso per ogni invio di questo modulo.",
-
   "users.title": "Utenti",
   "users.search_ph": "Cerca un nome o un'email…",
   "users.new": "Nuovo account",
@@ -420,8 +397,6 @@
   "users.email": "Email",
   "users.password_initial": "Password iniziale",
   "users.role": "Ruolo",
-  "users.role_help_summary": "Cosa può fare ciascun ruolo",
-  "users.role_help": "Membro: crea e gestisce i propri siti, i suoi moduli e i suoi invii.\nAmministratore: vede tutti i siti dell'istanza e gestisce gli account.",
   "users.create_btn": "Crea account",
   "users.col.2fa": "2FA",
   "users.col.status": "Stato",
@@ -456,5 +431,38 @@
   "users.err.create_failed": "Impossibile creare l'account.",
   "users.err.required": "Nome, email e password (almeno %d caratteri) sono obbligatori.",
   "users.col.sites": "Siti",
-  "users.err.self_deactivate": "Non può disattivare il proprio account"
+  "users.err.self_deactivate": "Non può disattivare il proprio account",
+  "nav.organisations": "Organizzazioni",
+  "orgs.title": "Organizzazioni",
+  "orgs.new": "Nuova organizzazione",
+  "orgs.new_help": "L'account amministratore viene creato con l'organizzazione. Comunicategli la password iniziale al di fuori di Naria.",
+  "orgs.name": "Nome dell'organizzazione",
+  "orgs.create_btn": "Crea l'organizzazione",
+  "orgs.col.name": "Organizzazione",
+  "orgs.col.admin": "Amministratore",
+  "orgs.col.created": "Creata il",
+  "orgs.no_admin": "Nessun amministratore",
+  "orgs.none": "Nessuna organizzazione.",
+  "orgs.replace_admin_btn": "Sostituisci l'amministratore",
+  "orgs.replace_admin_confirm": "Sostituire l'amministratore di %s? L'amministratore attuale diventa un utente semplice.",
+  "orgs.err.name_required": "Il nome dell'organizzazione è obbligatorio.",
+  "orgs.err.not_found": "Organizzazione non trovata.",
+  "orgs.flash.created": "Organizzazione %s creata.",
+  "orgs.flash.admin_replaced": "Amministratore sostituito.",
+  "users.create_help": "L'account viene creato come utente della vostra organizzazione. Comunicategli la password iniziale al di fuori di Naria.",
+  "sites.shared_badge": "Condiviso",
+  "site.shared_notice": "Questo sito vi è condiviso in lettura: vedete i suoi moduli e le relative risposte, ma non potete modificarlo.",
+  "site.readers_heading": "Lettura delle risposte",
+  "site.readers_intro": "Questi utenti dell'organizzazione leggono le risposte di tutti i moduli di questo sito, senza poterlo modificare.",
+  "site.readers_empty": "Nessun utente può leggere questo sito.",
+  "site.readers_add_label": "Concedi la lettura a",
+  "site.readers_add_btn": "Concedi la lettura",
+  "site.readers_remove_btn": "Rimuovi",
+  "site.readers_remove_confirm": "Rimuovere la lettura a %s?",
+  "site.readers_none_available": "Nessun utente attivo dell'organizzazione a cui concedere la lettura.",
+  "site.flash.reader_added": "Lettura concessa.",
+  "site.flash.reader_refused": "Lettura non concessa: questo account non è un utente attivo dell'organizzazione, o è già proprietario del sito.",
+  "site.flash.reader_removed": "Lettura rimossa.",
+  "role.admin_orga": "Amministratore d'organizzazione",
+  "role.user": "Utente"
 }

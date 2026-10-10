@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createAttachment = `-- name: CreateAttachment :exec
@@ -56,14 +57,17 @@ FROM attachments a
 JOIN submissions sub ON sub.id = a.submission_id
 JOIN forms f ON f.id = sub.form_id
 JOIN sites s ON s.id = f.site_id
+JOIN users o ON o.id = s.owner_id
 WHERE a.id = $1
-  AND ($2::bool OR s.owner_id = $3)
+  AND (s.owner_id = $2
+       OR o.org_id = $3::uuid
+       OR EXISTS (SELECT 1 FROM site_read_grants g WHERE g.site_id = s.id AND g.user_id = $2))
 `
 
 type GetAttachmentScopedParams struct {
-	ID       uuid.UUID
-	IsAdmin  bool
-	ViewerID uuid.UUID
+	ID         uuid.UUID
+	ViewerID   uuid.UUID
+	AdminOrgID pgtype.UUID
 }
 
 type GetAttachmentScopedRow struct {
@@ -74,7 +78,7 @@ type GetAttachmentScopedRow struct {
 // Même règle de cloisonnement que submissions.sql : le périmètre du demandeur
 // est vérifié dans la requête, via le site propriétaire du formulaire.
 func (q *Queries) GetAttachmentScoped(ctx context.Context, arg GetAttachmentScopedParams) (GetAttachmentScopedRow, error) {
-	row := q.db.QueryRow(ctx, getAttachmentScoped, arg.ID, arg.IsAdmin, arg.ViewerID)
+	row := q.db.QueryRow(ctx, getAttachmentScoped, arg.ID, arg.ViewerID, arg.AdminOrgID)
 	var i GetAttachmentScopedRow
 	err := row.Scan(&i.Filename, &i.Content)
 	return i, err

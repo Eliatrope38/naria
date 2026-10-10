@@ -2,7 +2,7 @@ package ui
 
 import "gitlab.com/detag_inno/naria/internal/database"
 
-// UsersPage : liste des comptes de l'instance + création (administrateur).
+// UsersPage : comptes d'une organisation + création (administrateur de l'organisation).
 templ UsersPage(user *database.User, rows []UserRowVM, csrf, errMsg, flash string, pg Pagination, q string) {
 	@Layout(T(ctx, "users.title"), user) {
 		<h1>{ T(ctx, "users.title") }</h1>
@@ -35,19 +35,8 @@ templ UsersPage(user *database.User, rows []UserRowVM, csrf, errMsg, flash strin
 						<span class="field-label">{ T(ctx, "users.password_initial") }</span>
 						<input type="text" name="password" required minlength="8" autocomplete="off" class="input"/>
 					</label>
-					<label style="flex:1;min-width:160px">
-						<span class="field-label">{ T(ctx, "users.role") }</span>
-						<select name="role" required class="input">
-							for _, ro := range roleOptions(ctx) {
-								<option value={ ro.Value }>{ ro.Label }</option>
-							}
-						</select>
-					</label>
 				</div>
-				<details class="role-help">
-					<summary>{ T(ctx, "users.role_help_summary") }</summary>
-					<p class="muted" style="white-space:pre-line;font-size:.85rem;margin:8px 0 0">{ T(ctx, "users.role_help") }</p>
-				</details>
+				<p class="muted" style="font-size:.85rem;margin:12px 0 0">{ T(ctx, "users.create_help") }</p>
 				<button type="submit" class="btn mt-18">{ T(ctx, "users.create_btn") }</button>
 			</form>
 		</div>
@@ -58,7 +47,7 @@ templ UsersPage(user *database.User, rows []UserRowVM, csrf, errMsg, flash strin
 						<tr>
 							<th scope="col">{ T(ctx, "users.name") }</th>
 							<th scope="col">{ T(ctx, "users.email") }</th>
-							<th scope="col" style="width:160px">{ T(ctx, "users.role") }</th>
+							<th scope="col" style="width:120px">{ T(ctx, "users.role") }</th>
 							<th scope="col" style="width:80px">{ T(ctx, "users.col.sites") }</th>
 							<th scope="col" style="width:90px">{ T(ctx, "users.col.2fa") }</th>
 							<th scope="col" style="width:110px">{ T(ctx, "users.col.status") }</th>
@@ -73,20 +62,7 @@ templ UsersPage(user *database.User, rows []UserRowVM, csrf, errMsg, flash strin
 							<tr>
 								<td class="ink">{ ur.Name }</td>
 								<td class="muted">{ ur.Email }</td>
-								<td>
-									if ur.IsSelf {
-										{ roleLabel(ctx, ur.Role) }
-									} else {
-										<form method="post" action={ templ.SafeURL("/users/" + ur.IDString + "/role") }>
-											<input type="hidden" name="csrf_token" value={ csrf }/>
-											<select name="role" data-autosubmit class="control" aria-label={ T(ctx, "users.role") }>
-												for _, ro := range roleOptions(ctx) {
-													<option value={ ro.Value } selected?={ ro.Value == ur.Role }>{ ro.Label }</option>
-												}
-											</select>
-										</form>
-									}
-								</td>
+								<td class="muted">{ roleLabel(ctx, ur.Role) }</td>
 								<td class="muted">{ itoa(ur.SiteCount) }</td>
 								<td>
 									if ur.TotpEnabled {
@@ -156,5 +132,93 @@ templ UsersPage(user *database.User, rows []UserRowVM, csrf, errMsg, flash strin
 			</div>
 		</div>
 		@paginationNav(pg)
+	}
+}
+
+// OrganisationsPage : les organisations de l'instance, leur administrateur, et la
+// création d'une organisation (administrateur de plateforme). Aucun compte listé.
+templ OrganisationsPage(user *database.User, rows []database.ListOrganisationsRow, csrf, errMsg, flash string) {
+	@Layout(T(ctx, "orgs.title"), user) {
+		<h1>{ T(ctx, "orgs.title") }</h1>
+		if flash != "" {
+			<div role="status" aria-live="polite" class="alert alert--success">{ flash }</div>
+		}
+		<div class="service-card" style="margin-bottom:24px">
+			<h2 class="subhead">{ T(ctx, "orgs.new") }</h2>
+			if errMsg != "" {
+				<p role="alert" class="alert alert--error">{ errMsg }</p>
+			}
+			<form method="post" action="/organisations">
+				<input type="hidden" name="csrf_token" value={ csrf }/>
+				<div style="display:flex;gap:12px;flex-wrap:wrap">
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "orgs.name") }</span>
+						<input type="text" name="org_name" required maxlength="120" class="input"/>
+					</label>
+				</div>
+				<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "users.name") }</span>
+						<input type="text" name="name" required maxlength="120" class="input"/>
+					</label>
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "users.email") }</span>
+						<input type="email" name="email" required class="input"/>
+					</label>
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "users.password_initial") }</span>
+						<input type="text" name="password" required minlength="8" autocomplete="off" class="input"/>
+					</label>
+				</div>
+				<p class="muted" style="font-size:.85rem;margin:12px 0 0">{ T(ctx, "orgs.new_help") }</p>
+				<button type="submit" class="btn mt-18">{ T(ctx, "orgs.create_btn") }</button>
+			</form>
+		</div>
+		<div class="service-card card--flush">
+			<div class="table-scroll">
+				<table class="specs-table m-0">
+					<thead>
+						<tr>
+							<th scope="col">{ T(ctx, "orgs.col.name") }</th>
+							<th scope="col">{ T(ctx, "orgs.col.admin") }</th>
+							<th scope="col" style="width:150px">{ T(ctx, "orgs.col.created") }</th>
+							<th scope="col" style="width:200px"><span class="muted visually-hidden">{ T(ctx, "common.actions") }</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(rows) == 0 {
+							<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">{ T(ctx, "orgs.none") }</td></tr>
+						}
+						for _, o := range rows {
+							<tr>
+								<td class="ink">{ o.Name }</td>
+								<td class="muted">
+									if o.AdminEmail != nil {
+										{ *o.AdminEmail }
+									} else {
+										<span class="badge badge--err">{ T(ctx, "orgs.no_admin") }</span>
+									}
+								</td>
+								<td class="muted">{ fmtDate(o.CreatedAt) }</td>
+								<td>
+									<details class="row-menu">
+										<summary class="btn btn--ghost btn--sm">{ T(ctx, "orgs.replace_admin_btn") } <span aria-hidden="true">▾</span></summary>
+										<div class="row-menu__panel">
+											<form method="post" action={ templ.SafeURL("/organisations/" + o.ID.String() + "/admin") } data-confirm={ T(ctx, "orgs.replace_admin_confirm", o.Name) } class="row-menu__form">
+												<input type="hidden" name="csrf_token" value={ csrf }/>
+												<input type="text" name="name" required maxlength="120" placeholder={ T(ctx, "users.name") } aria-label={ T(ctx, "users.name") } class="control"/>
+												<input type="email" name="email" required placeholder={ T(ctx, "users.email") } aria-label={ T(ctx, "users.email") } class="control"/>
+												<input type="text" name="password" required minlength="8" autocomplete="off" placeholder={ T(ctx, "users.password_initial") } aria-label={ T(ctx, "users.password_initial") } class="control"/>
+												<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "orgs.replace_admin_btn") }</button>
+											</form>
+										</div>
+									</details>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
 	}
 }

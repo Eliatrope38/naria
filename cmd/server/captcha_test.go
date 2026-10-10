@@ -336,13 +336,21 @@ func TestCaptchaAlerteLeProprietaire(t *testing.T) {
 		t.Fatalf("solution illisible : statut %d", resp.StatusCode)
 	}
 	time.Sleep(50 * time.Millisecond)
-	msgs := e.mailer.messages(t, 1)
-	if len(msgs) != 1 {
-		t.Fatalf("%d alerte(s) pour deux refus, 1 attendue", len(msgs))
+	// One alert per address: the owner and the administrator of their organisation.
+	msgs := e.mailer.messages(t, 2)
+	if len(msgs) != 2 {
+		t.Fatalf("%d alerte(s) pour deux refus, 2 attendues", len(msgs))
 	}
-	if m := msgs[0]; len(m.To) != 1 || m.To[0] != e.fx.memberB.Email || !strings.Contains(m.Subject, "anti-robot") ||
-		!strings.Contains(m.HTML, "/forms/"+form.ID.String()) || strings.Contains(m.HTML, "secret-visiteur") {
-		t.Errorf("alerte inattendue : à %v, sujet %q, corps %s", m.To, m.Subject, m.HTML)
+	to := map[string]bool{}
+	for _, m := range msgs {
+		to[strings.Join(m.To, ",")] = true
+		if len(m.To) != 1 || !strings.Contains(m.Subject, "anti-robot") ||
+			!strings.Contains(m.HTML, "/forms/"+form.ID.String()) || strings.Contains(m.HTML, "secret-visiteur") {
+			t.Errorf("alerte inattendue : à %v, sujet %q, corps %s", m.To, m.Subject, m.HTML)
+		}
+	}
+	if !to[e.fx.memberB.Email] || !to[e.fx.orgAdmin.Email] {
+		t.Errorf("destinataires des alertes : %v (propriétaire et administrateur attendus)", to)
 	}
 	if _, page := get(t, owner, e.url+"/forms/"+form.ID.String()); !strings.Contains(page, notice+"2") {
 		t.Errorf("la page du formulaire doit compter les deux refus")

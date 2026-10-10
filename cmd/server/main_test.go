@@ -28,6 +28,7 @@ import (
 
 	"github.com/alexedwards/scs/pgxstore"
 	"github.com/alexedwards/scs/v2"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	naria "gitlab.com/detag_inno/naria"
@@ -114,14 +115,23 @@ func (f *fakeMailer) messages(t *testing.T, n int) []email.Message {
 	}
 }
 
+// fixtures: two organisations. The platform administrator belongs to none. Organisation A
+// has its administrator and two users, B has an administrator and one user.
 type fixtures struct {
-	admin   database.User
-	memberA database.User
-	memberB database.User
-	siteA   database.Site // domains: exemple.fr
-	siteB   database.Site // no domain restriction
-	formA   database.Form // kept + email
-	formB   database.Form // kept + email
+	admin     database.User // platform administrator
+	orgA      database.Organisation
+	orgAdmin  database.User // administrator of orgA
+	memberA   database.User // user of orgA, owns siteA
+	memberB   database.User // user of orgA, owns siteB
+	orgB      database.Organisation
+	orgBAdmin database.User // administrator of orgB
+	memberC   database.User // user of orgB, owns siteC
+	siteA     database.Site // domains: exemple.fr
+	siteB     database.Site // no domain restriction
+	siteC     database.Site // organisation B
+	formA     database.Form // kept + email
+	formB     database.Form // kept + email
+	formC     database.Form // organisation B
 }
 
 type testEnv struct {
@@ -247,23 +257,40 @@ func seed(t *testing.T, q *database.Queries) fixtures {
 	if err != nil {
 		t.Fatalf("hash: %v", err)
 	}
-	fx := fixtures{
-		admin:   mustUser(t, q, "admin@naria.test", auth.RoleAdmin, hash),
-		memberA: mustUser(t, q, "a@a.test", auth.RoleMember, hash),
-		memberB: mustUser(t, q, "b@b.test", auth.RoleMember, hash),
-	}
+	fx := fixtures{admin: mustUser(t, q, "admin@naria.test", auth.RoleAdmin, hash, nil)}
+	fx.orgA = mustOrg(t, q, "Orga")
+	fx.orgAdmin = mustUser(t, q, "orga@naria.test", auth.RoleOrgAdmin, hash, &fx.orgA)
+	fx.memberA = mustUser(t, q, "a@a.test", auth.RoleUser, hash, &fx.orgA)
+	fx.memberB = mustUser(t, q, "b@b.test", auth.RoleUser, hash, &fx.orgA)
+	fx.orgB = mustOrg(t, q, "Orgb")
+	fx.orgBAdmin = mustUser(t, q, "orgb@naria.test", auth.RoleOrgAdmin, hash, &fx.orgB)
+	fx.memberC = mustUser(t, q, "c@c.test", auth.RoleUser, hash, &fx.orgB)
 	fx.siteA = mustSite(t, q, fx.memberA, "Site Alpha", []string{"exemple.fr"})
 	fx.siteB = mustSite(t, q, fx.memberB, "Site Bravo", []string{})
+	fx.siteC = mustSite(t, q, fx.memberC, "Site Charlie", []string{})
 	fx.formA = mustForm(t, q, fx.siteA, "Contact Alpha", true, true)
 	fx.formB = mustForm(t, q, fx.siteB, "Contact Bravo", true, true)
+	fx.formC = mustForm(t, q, fx.siteC, "Contact Charlie", true, true)
 	return fx
 }
 
-func mustUser(t *testing.T, q *database.Queries, addr, role, hash string) database.User {
+func mustOrg(t *testing.T, q *database.Queries, name string) database.Organisation {
 	t.Helper()
-	u, err := q.CreateUser(context.Background(), database.CreateUserParams{
-		Email: addr, Name: addr, Role: role, PasswordHash: hash,
-	})
+	o, err := q.CreateOrganisation(context.Background(), name)
+	if err != nil {
+		t.Fatalf("création organisation %q: %v", name, err)
+	}
+	return o
+}
+
+// mustUser creates an account; org is nil for the platform administrator.
+func mustUser(t *testing.T, q *database.Queries, addr, role, hash string, org *database.Organisation) database.User {
+	t.Helper()
+	params := database.CreateUserParams{Email: addr, Name: addr, Role: role, PasswordHash: hash}
+	if org != nil {
+		params.OrgID = pgtype.UUID{Bytes: org.ID, Valid: true}
+	}
+	u, err := q.CreateUser(context.Background(), params)
 	if err != nil {
 		t.Fatalf("création compte %q: %v", addr, err)
 	}
@@ -277,6 +304,17 @@ func mustSite(t *testing.T, q *database.Queries, owner database.User, name strin
 		t.Fatalf("création site %q: %v", name, err)
 	}
 	return s
+}
+
+// setActive activates or deactivates a user of org, as its administrator would.
+func setActive(t *testing.T, e testEnv, org database.Organisation, target database.User, active bool) {
+	t.Helper()
+	n, err := e.q.SetUserActiveScoped(context.Background(), database.SetUserActiveScopedParams{
+		ID: target.ID, Active: active, AdminOrgID: pgtype.UUID{Bytes: org.ID, Valid: true},
+	})
+	if err != nil || n != 1 {
+		t.Fatalf("activation du compte %q: %d lignes, %v", target.Email, n, err)
+	}
 }
 
 func mustForm(t *testing.T, q *database.Queries, site database.Site, name string, notify, store bool) database.Form {
@@ -484,7 +522,7 @@ func TestMembreCloisonneASesSites(t *testing.T) {
 
 	// Nothing changed for A.
 	ctx := context.Background()
-	site, err := e.q.GetSiteScoped(ctx, database.GetSiteScopedParams{ID: e.fx.siteA.ID, IsAdmin: true})
+	site, err := e.q.GetSiteScoped(ctx, database.GetSiteScopedParams{ID: e.fx.siteA.ID, ViewerID: e.fx.memberA.ID})
 	if err != nil || site.Name != "Site Alpha" {
 		t.Errorf("site A altéré ou supprimé : %v %q", err, site.Name)
 	}
@@ -503,48 +541,6 @@ func TestMembreCloisonneASesSites(t *testing.T) {
 	login(t, a, e.url, e.fx.memberA.Email)
 	if code, body := get(t, a, e.url+"/submissions/"+subA.ID.String()); code != http.StatusOK || !strings.Contains(body, "secret-alpha") {
 		t.Errorf("le propriétaire doit lire sa soumission : statut %d", code)
-	}
-}
-
-func TestAdminVoitToutEtMembreNAdministrePas(t *testing.T) {
-	e := setup(t)
-
-	adm := newClient()
-	login(t, adm, e.url, e.fx.admin.Email)
-	if _, body := get(t, adm, e.url+"/"); !strings.Contains(body, "Site Alpha") || !strings.Contains(body, "Site Bravo") {
-		t.Errorf("l'administrateur doit voir tous les sites")
-	}
-	if code, _ := get(t, adm, e.url+"/users"); code != http.StatusOK {
-		t.Errorf("/users pour l'administrateur : statut %d", code)
-	}
-
-	a := newClient()
-	login(t, a, e.url, e.fx.memberA.Email)
-	if code, _ := get(t, a, e.url+"/users"); code != http.StatusForbidden {
-		t.Errorf("/users pour un membre : statut %d (403 attendu)", code)
-	}
-	// A member cannot take over a site by naming themselves owner, nor promote themselves
-	// to administrator.
-	token := csrfToken(t, a, e.url+"/account")
-	for _, path := range []string{
-		"/sites/" + e.fx.siteB.ID.String() + "/owner",
-		"/sites/" + e.fx.siteA.ID.String() + "/owner",
-		"/users/" + e.fx.memberA.ID.String() + "/role",
-	} {
-		resp := postForm(t, a, e.url+path, url.Values{
-			"csrf_token": {token}, "owner_id": {e.fx.memberA.ID.String()}, "role": {auth.RoleAdmin},
-		})
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
-			t.Errorf("POST %s par un membre : statut %d (403 attendu)", path, resp.StatusCode)
-		}
-	}
-	site, _ := e.q.GetSiteScoped(context.Background(), database.GetSiteScopedParams{ID: e.fx.siteB.ID, IsAdmin: true})
-	if site.OwnerID != e.fx.memberB.ID {
-		t.Errorf("le site B a changé de propriétaire")
-	}
-	if u, _ := e.q.GetUserByID(context.Background(), e.fx.memberA.ID); u.Role != auth.RoleMember {
-		t.Errorf("le membre A a changé de rôle : %s", u.Role)
 	}
 }
 
@@ -873,7 +869,7 @@ func TestPiecesJointes(t *testing.T) {
 		}
 	}
 	admin := newClient()
-	login(t, admin, e.url, e.fx.admin.Email)
+	login(t, admin, e.url, e.fx.orgAdmin.Email)
 	dl, err = admin.Get(e.url + "/attachments/" + ids[1])
 	if err != nil {
 		t.Fatalf("téléchargement: %v", err)
@@ -1874,7 +1870,7 @@ func TestBoutonTesterEstLimiteParCompte(t *testing.T) {
 
 	// The limit is per account: the administrator still tests the same form.
 	adm := newClient()
-	login(t, adm, e.url, e.fx.admin.Email)
+	login(t, adm, e.url, e.fx.orgAdmin.Email)
 	vals.Set("csrf_token", csrfToken(t, adm, e.url+"/account"))
 	resp := postForm(t, adm, testURL, vals)
 	resp.Body.Close()

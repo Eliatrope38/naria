@@ -1,19 +1,8 @@
 package auth
 
-// Application roles.
+// Account roles.
 const (
-	RoleMember = "member" // manages their own sites, forms and submissions
-	RoleAdmin  = "admin"  // sees all sites and manages accounts
+	RoleAdmin    = "admin"      // platform administrator: manages organisations, sees no site or submission
+	RoleOrgAdmin = "admin_orga" // administers one organisation: its sites, forms, submissions and users
+	RoleUser     = "user"       // manages the sites it owns, and reads those an organisation shared with it
 )
-
-func IsAdmin(role string) bool {
-	return role == RoleAdmin
-}
-
-func ValidRole(role string) bool {
-	switch role {
-	case RoleMember, RoleAdmin:
-		return true
-	}
-	return false
-}

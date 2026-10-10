@@ -46,13 +46,6 @@ type UserRowVM struct {
 	SiteCount   int64
 }
 
-func roleOptions(ctx context.Context) []Option {
-	return []Option{
-		{"member", T(ctx, "role.member")},
-		{"admin", T(ctx, "role.admin")},
-	}
-}
-
 func roleLabel(ctx context.Context, role string) string {
 	return T(ctx, "role."+role)
 }
@@ -61,10 +54,13 @@ type SiteVM struct {
 	User   *database.User
 	Site   database.GetSiteScopedRow
 	Forms  []database.ListFormsBySiteRow
-	Owners []database.User // active accounts, for transfer (admin); empty otherwise
-	CSRF   string
-	Flash  string
-	ErrMsg string
+	Owners []database.User // active accounts of the organisation, for transfer (org admin); empty otherwise
+	// Read access granted on the site, and the accounts it can be granted to (org admin only).
+	Readers   []database.ListSiteReadGrantsRow
+	Grantable []database.ListGrantableUsersRow
+	CSRF      string
+	Flash     string
+	ErrMsg    string
 
 	Tokens   []database.ListAPITokensBySiteRow
 	APIBase  string // API address (BASE_URL + /api/v1)

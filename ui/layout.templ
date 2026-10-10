@@ -54,8 +54,12 @@ templ header(user *database.User) {
 				</button>
 				<nav id="main-nav" class="main-nav">
 					<ul>
-						<li><a href="/">{ T(ctx, "nav.sites") }</a></li>
-						if auth.IsAdmin(user.Role) {
+						if user.Role == auth.RoleAdmin {
+							<li><a href="/organisations">{ T(ctx, "nav.organisations") }</a></li>
+						} else {
+							<li><a href="/">{ T(ctx, "nav.sites") }</a></li>
+						}
+						if user.Role == auth.RoleOrgAdmin {
 							<li><a href="/users">{ T(ctx, "nav.users") }</a></li>
 						}
 						<li><a href="/account">{ T(ctx, "nav.account") }</a></li>

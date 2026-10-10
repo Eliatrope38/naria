@@ -227,7 +227,7 @@ func TestExportZIPIsoleParFormulaire(t *testing.T) {
 		t.Fatalf("soumission B : statut %d, corps %s", resp.StatusCode, out)
 	}
 	adm := newClient()
-	login(t, adm, e.url, e.fx.admin.Email)
+	login(t, adm, e.url, e.fx.orgAdmin.Email)
 	files := exportZIP(t, adm, e.url+"/forms/"+e.fx.formA.ID.String()+"/export.zip")
 	if len(files) != 2 || files["pieces-jointes/0001/1-alpha.pdf"] != "fichier-alpha" {
 		t.Errorf("l'export de A doit porter son CSV et son fichier : %d fichiers", len(files))
@@ -353,7 +353,7 @@ func TestExportZIPCloisonne(t *testing.T) {
 	}
 
 	adm := newClient()
-	login(t, adm, e.url, e.fx.admin.Email)
+	login(t, adm, e.url, e.fx.orgAdmin.Email)
 	if files := exportZIP(t, adm, target); files["pieces-jointes/0001/1-cv-secret.pdf"] != "contenu-tres-confidentiel" {
 		t.Errorf("l'administrateur doit pouvoir exporter les fichiers de tout formulaire")
 	}

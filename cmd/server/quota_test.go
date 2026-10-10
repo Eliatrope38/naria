@@ -77,8 +77,9 @@ func TestQuotaRepliSurLEmail(t *testing.T) {
 		t.Errorf("%d soumission(s) conservée(s) (2 attendues : le formulaire plein ne conserve plus)", n)
 	}
 	// Two regular notifications, two announcing that the submission is not kept, and the
-	// alert, sent to the owner then to the recipients.
-	sent := e.mailer.messages(t, 6)
+	// alert, sent to the owner, to the administrator of their organisation, then to the
+	// recipients.
+	sent := e.mailer.messages(t, 7)
 	var notStored int
 	for _, m := range sent {
 		if strings.Contains(m.HTML, "arrive quand meme") {
@@ -89,8 +90,8 @@ func TestQuotaRepliSurLEmail(t *testing.T) {
 		}
 	}
 	got := alerts(sent)
-	if len(sent) != 6 || notStored != 2 || len(got) != 2 {
-		t.Fatalf("%d email(s), dont %d sans conservation et %d alerte(s) (6, 2 et 2 attendus)", len(sent), notStored, len(got))
+	if len(sent) != 7 || notStored != 2 || len(got) != 3 {
+		t.Fatalf("%d email(s), dont %d sans conservation et %d alerte(s) (7, 2 et 3 attendus)", len(sent), notStored, len(got))
 	}
 	// The site owner and the form recipient each receive their own message: the second one
 	// does not have to read the first one's login address. The alert carries nothing from a visitor.
@@ -103,7 +104,7 @@ func TestQuotaRepliSurLEmail(t *testing.T) {
 		}
 	}
 	slices.Sort(to)
-	if strings.Join(to, ",") != "b@b.test,dest@exemple.fr" {
+	if strings.Join(to, ",") != "b@b.test,dest@exemple.fr,orga@naria.test" {
 		t.Errorf("destinataires des alertes : %v", to)
 	}
 
@@ -159,13 +160,18 @@ func TestQuotaRefus(t *testing.T) {
 	if n, files := countSubmissions(t, e, stored), countAttachments(t, e); n != 2 || files != 0 {
 		t.Errorf("%d soumission(s), %d fichier(s) conservé(s) (2 et 0 attendus)", n, files)
 	}
-	// A single alert for five refusals, sent to the owner only: this form does not notify,
-	// and its recipients asked for nothing.
+	// One alert per address for five refusals, to the owner and to the administrator of their
+	// organisation: this form does not notify, and its recipients asked for nothing.
 	e.mailer.messages(t, 1)
 	time.Sleep(250 * time.Millisecond)
-	sent := e.mailer.messages(t, 1)
-	if got := alerts(sent); len(sent) != 1 || len(got) != 1 || strings.Join(got[0].To, ",") != "b@b.test" || !strings.Contains(got[0].HTML, "sont refusées") {
-		t.Fatalf("%d email(s), %d alerte(s) (une seule alerte, au propriétaire, attendue)", len(sent), len(got))
+	sent := e.mailer.messages(t, 2)
+	got := alerts(sent)
+	to := map[string]bool{}
+	for _, m := range got {
+		to[strings.Join(m.To, ",")] = true
+	}
+	if len(sent) != 2 || len(got) != 2 || !to["b@b.test"] || !to["orga@naria.test"] || !strings.Contains(got[0].HTML, "sont refusées") {
+		t.Fatalf("%d email(s), %d alerte(s) à %v (deux alertes, au propriétaire et à l'administrateur, attendues)", len(sent), len(got), to)
 	}
 
 	c := newClient()
@@ -344,8 +350,12 @@ func TestQuotaAlerteDestinataireRefuse(t *testing.T) {
 	e.mailer.mu.Lock()
 	got := alerts(e.mailer.sent)
 	e.mailer.mu.Unlock()
-	if len(got) != 1 || strings.Join(got[0].To, ",") != "b@b.test" {
-		t.Errorf("%d alerte(s) reçue(s) (une seule, par le propriétaire, attendue)", len(got))
+	to := map[string]bool{}
+	for _, m := range got {
+		to[strings.Join(m.To, ",")] = true
+	}
+	if len(got) != 2 || !to["b@b.test"] || !to["orga@naria.test"] {
+		t.Errorf("%d alerte(s) reçue(s) à %v (une par adresse, au propriétaire et à l'administrateur, attendues)", len(got), to)
 	}
 }
 

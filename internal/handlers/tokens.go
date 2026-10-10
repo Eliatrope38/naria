@@ -30,7 +30,7 @@ const (
 // without invalidating the first.
 func (a *App) CreateAPIToken(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	site, ok := a.siteFor(w, r)
+	site, ok := a.writableSiteFor(w, r)
 	if !ok {
 		return
 	}
@@ -89,7 +89,7 @@ func (a *App) CreateAPIToken(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) RevokeAPIToken(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
-	site, ok := a.siteFor(w, r)
+	site, ok := a.writableSiteFor(w, r)
 	if !ok {
 		return
 	}

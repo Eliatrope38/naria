@@ -124,18 +124,28 @@ func (a *App) captchaUnsolved(form database.GetFormByAccessKeyRow) {
 
 // sendCaptchaAlert writes to the site owner. The email carries no visitor data.
 func (a *App) sendCaptchaAlert(ctx context.Context, form database.GetFormByAccessKeyRow) error {
-	owner, err := a.Q.GetSiteOwnerEmail(ctx, form.SiteID)
+	owner, orgAdmin, err := a.siteAlertAddresses(ctx, form.SiteID)
 	if err != nil {
 		return err
 	}
 	loc := i18n.Get(i18n.Locale(form.NotificationLang))
 	link := strings.TrimRight(a.Cfg.BaseURL, "/") + "/forms/" + form.ID.String()
-	return a.Mailer.Send(ctx, email.Message{
+	msg := email.Message{
 		To:      []string{owner},
 		Subject: loc.T("mail.captcha.subject", form.SiteName, form.Name),
 		HTML: submissionEmailHTML(loc.T("mail.captcha.intro", form.Name, form.SiteName), loc.T("mail.captcha.note"), nil,
 			link, loc.T("mail.quota.button"), loc.T("mail.submission.footer", a.Cfg.Brand.Name), a.Cfg.Brand.Color),
-	})
+	}
+	if err := a.Mailer.Send(ctx, msg); err != nil {
+		return err
+	}
+	if orgAdmin != "" {
+		msg.To = []string{orgAdmin}
+		if err := a.Mailer.Send(ctx, msg); err != nil {
+			log.Printf("ERROR email: alerte anti-robot à l'administrateur de l'organisation formulaire=%s: %q", form.ID, err.Error()) // #nosec G706 -- form.ID is a UUID; the error is quoted (%q escapes CR/LF)
+		}
+	}
+	return nil
 }
 
 func (a *App) captchaUnsolvedCount(formID uuid.UUID) int {

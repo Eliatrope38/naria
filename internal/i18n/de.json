@@ -5,7 +5,6 @@
   "nav.account": "Mein Konto",
   "nav.logout": "Abmelden",
   "nav.sites": "Websites",
-
   "footer.support": "Support",
   "footer.version": "Version",
   "footer.online": "online",
@@ -14,15 +13,12 @@
   "footer.open_source": "(Open-Source-Projekt)",
   "footer.privacy": "Datenschutz",
   "footer.legal": "Impressum",
-
   "lang.label": "Sprache",
   "lang.fr": "Französisch",
   "lang.en": "Englisch",
   "lang.it": "Italienisch",
   "lang.de": "Deutsch",
-
   "theme.toggle": "Helles / dunkles Design",
-
   "common.optional": "(optional)",
   "common.actions": "Aktionen",
   "common.enabled": "Aktiviert",
@@ -40,7 +36,6 @@
   "size.bytes": "%d B",
   "size.kb": "%d KB",
   "size.mb": "%d,%d MB",
-
   "login.title": "Anmeldung",
   "login.heading": "Anmeldung",
   "login.email": "E-Mail",
@@ -56,7 +51,6 @@
   "login.verify.submit": "Bestätigen",
   "login.verify.err.bad": "Code falsch, bitte versuchen Sie es erneut.",
   "login.forgot_link": "Passwort vergessen?",
-
   "forgot.title": "Passwort vergessen",
   "forgot.heading": "Passwort vergessen",
   "forgot.help": "Geben Sie die E-Mail-Adresse Ihres Kontos ein. Ist sie bekannt, erhalten Sie einen Link, um ein neues Passwort zu wählen.",
@@ -67,7 +61,6 @@
   "forgot.email.intro": "Hallo %s, für Ihr Konto wurde das Zurücksetzen des Passworts angefordert.",
   "forgot.email.note": "Dieser Link ist eine Stunde gültig und kann nur einmal verwendet werden. Wenn Sie das nicht veranlasst haben, ignorieren Sie diese E-Mail: Ihr Passwort bleibt unverändert.",
   "forgot.email.button": "Neues Passwort wählen",
-
   "reset.title": "Neues Passwort",
   "reset.heading": "Neues Passwort",
   "reset.password": "Neues Passwort",
@@ -77,7 +70,6 @@
   "reset.err.invalid": "Dieser Link ist ungültig, bereits verwendet oder abgelaufen.",
   "reset.request_again": "Neuen Link anfordern",
   "reset.done": "Passwort geändert. Sie können sich jetzt anmelden.",
-
   "account.title": "Mein Konto",
   "account.heading": "Mein Konto",
   "account.name": "Name",
@@ -113,7 +105,6 @@
   "account.err.enable": "Fehler bei der Aktivierung",
   "account.err.codes_gen": "Fehler bei der Erzeugung der Backup-Codes",
   "account.err.disable": "Fehler bei der Deaktivierung",
-
   "codes.title": "Backup-Codes",
   "codes.heading": "Backup-Codes",
   "codes.warn_lead": "Bewahren Sie diese Codes an einem sicheren Ort auf. Jeder Code kann",
@@ -121,7 +112,6 @@
   "codes.warn_mid": "verwendet werden, um sich bei Verlust Ihres Telefons anzumelden. Sie werden",
   "codes.warn_never": "nie wieder angezeigt",
   "codes.saved_btn": "Ich habe meine Codes gespeichert",
-
   "setup.title": "2FA aktivieren",
   "setup.back": "← Mein Konto",
   "setup.heading": "Zwei-Faktor-Authentifizierung aktivieren",
@@ -131,15 +121,11 @@
   "setup.manual": "Manuelle Eingabe:",
   "setup.code_label": "Bestätigungscode",
   "setup.confirm_btn": "Bestätigen",
-
-  "role.member": "Mitglied",
-  "role.admin": "Administrator",
-
+  "role.admin": "Plattform-Administrator",
   "pagination.aria": "Seitennavigation",
   "pagination.prev": "← Zurück",
   "pagination.next": "Weiter →",
   "pagination.page": "Seite %d von %d",
-
   "sites.title": "Websites",
   "sites.subtitle": "Die Websites, deren Formulare Sie erhalten.",
   "sites.new": "Neue Website",
@@ -152,7 +138,6 @@
   "sites.col.owner": "Inhaber",
   "sites.col.forms": "Formulare",
   "sites.col.unread": "Ungelesen",
-
   "site.back": "← Alle Websites",
   "site.name_label": "Name der Website",
   "site.domains_label": "Erlaubte Domains",
@@ -170,7 +155,7 @@
   "site.settings_heading": "Website-Einstellungen",
   "site.owner_label": "Inhaber",
   "site.owner_btn": "Übertragen",
-  "site.owner_help": "Der Inhaber verwaltet die Website und ihre Formulare und liest deren Eingänge.",
+  "site.owner_help": "Der Organisations-Administrator kann die Website an einen anderen Benutzer der Organisation übertragen. Der bisherige Eigentümer verliert jeden Zugriff.",
   "site.delete_heading": "Website löschen",
   "site.delete_help": "Löscht auch ihre Formulare und alle Eingänge. Nicht rückgängig zu machen.",
   "site.delete_btn": "Website löschen",
@@ -216,7 +201,6 @@
   "api.err.json_field": "Unbekanntes Feld: %s.",
   "api.err.too_large": "Inhalt zu groß.",
   "api.err.too_many_forms": "Diese Website hat bereits %d Formulare: Die API erstellt keine weiteren.",
-
   "form.new.title": "Neues Formular",
   "form.settings.title": "Formular-Einstellungen",
   "form.settings_btn": "Einstellungen",
@@ -330,21 +314,18 @@
   "form.err.telegram_pair": "Telegram: Bot-Token und Chat-ID gehören zusammen. Füllen Sie beide aus oder keines der beiden.",
   "form.err.telegram_token": "Ungültiges Telegram-Token: Es hat die Form 123456789:AA…, wie von @BotFather ausgegeben.",
   "form.err.telegram_chat": "Ungültige Telegram-Chat-ID: Erforderlich ist eine Zahl (negativ für eine Gruppe oder einen Kanal) oder @kanalname.",
-
   "submissions.heading": "Eingänge (%d)",
   "submissions.mark_all_read": "Alle als gelesen markieren",
   "submissions.export_btn": "Als CSV exportieren",
   "submissions.export_zip_btn": "Mit Anhängen exportieren",
   "submissions.empty": "Noch kein Eingang.",
   "submissions.empty_hint": "Sie erscheinen hier, sobald Ihre Website den ersten sendet.",
-
   "export.csv_name": "eingaenge.csv",
   "export.folder": "anhaenge",
   "export.folder_col": "Ordner der Anhänge",
   "export.err.busy": "Zu viele Exporte laufen. Versuchen Sie es in einer Minute erneut.",
   "export.missing_name": "fehlende-dateien.txt",
   "export.missing_intro": "Diese Anhänge konnten nicht gelesen werden und fehlen im Archiv:",
-
   "submission.title": "Eingang",
   "submission.heading": "Eingang vom %s",
   "submission.col.received": "Eingegangen am",
@@ -361,7 +342,6 @@
   "submission.attachments": "Anhänge",
   "submission.err.attachment_not_found": "Anhang nicht gefunden",
   "submission.err.attachment_unreadable": "Dieser Anhang kann nicht entschlüsselt werden.",
-
   "submit.ok": "Danke, Ihre Nachricht wurde gesendet.",
   "submit.page.ok_title": "Nachricht gesendet",
   "submit.page.err_title": "Senden nicht möglich",
@@ -388,7 +368,6 @@
   "submit.err.empty": "Das Formular ist leer.",
   "submit.err.unavailable": "Die Nachricht konnte nicht zugestellt werden. Versuchen Sie es gleich noch einmal.",
   "submit.err.internal": "Interner Fehler. Versuchen Sie es gleich noch einmal.",
-
   "mail.submission.subject": "[%s] Neuer Eingang: %s",
   "mail.submission.intro": "Neuer Eingang des Formulars „%s“ auf der Website „%s“.",
   "mail.submission.no_content": "Der Inhalt ist nicht in dieser E-Mail enthalten: Lesen Sie ihn in der Oberfläche.",
@@ -404,7 +383,6 @@
   "mail.captcha.subject": "[%s] Eingang abgelehnt, weil die Anti-Bot-Prüfung fehlt: %s",
   "mail.captcha.intro": "Das Formular „%s“ auf der Website „%s“ hat den Eingang eines Besuchers abgelehnt: Dessen Browser hat die Anti-Bot-Prüfung nicht durchgeführt.",
   "mail.captcha.note": "Lädt die Seite des Formulars das Prüfskript nicht, werden alle seine Eingänge abgelehnt. Ein Bot, der einen Browser nachahmt, kann diesen Hinweis ebenfalls auslösen: Eine von der Website gesendete Testnachricht klärt das. Er wird höchstens einmal täglich gesendet.",
-
   "chat.submission.title": "Neuer Eingang: %s",
   "chat.submission.note_stored": "Lesen Sie ihn in der Oberfläche.",
   "chat.submission.note_email": "Der Inhalt wurde per E-Mail gesendet.",
@@ -412,7 +390,6 @@
   "chat.submission.link": "Eingang ansehen",
   "chat.test.title": "Testnachricht: %s",
   "chat.test.note": "Dieser Kanal erhält bei jedem Eingang dieses Formulars eine Meldung.",
-
   "users.title": "Benutzer",
   "users.search_ph": "Name oder E-Mail suchen…",
   "users.new": "Neues Konto",
@@ -420,8 +397,6 @@
   "users.email": "E-Mail",
   "users.password_initial": "Anfangspasswort",
   "users.role": "Rolle",
-  "users.role_help_summary": "Was jede Rolle darf",
-  "users.role_help": "Mitglied: erstellt und verwaltet seine eigenen Websites, Formulare und Eingänge.\nAdministrator: sieht alle Websites der Instanz und verwaltet die Konten.",
   "users.create_btn": "Konto erstellen",
   "users.col.2fa": "2FA",
   "users.col.status": "Status",
@@ -456,5 +431,38 @@
   "users.err.create_failed": "Das Konto konnte nicht erstellt werden.",
   "users.err.required": "Name, E-Mail und Passwort (mindestens %d Zeichen) sind erforderlich.",
   "users.col.sites": "Websites",
-  "users.err.self_deactivate": "Sie können Ihr eigenes Konto nicht deaktivieren"
+  "users.err.self_deactivate": "Sie können Ihr eigenes Konto nicht deaktivieren",
+  "nav.organisations": "Organisationen",
+  "orgs.title": "Organisationen",
+  "orgs.new": "Neue Organisation",
+  "orgs.new_help": "Das Administratorkonto wird mit der Organisation angelegt. Das Startpasswort geben Sie außerhalb von Naria weiter.",
+  "orgs.name": "Name der Organisation",
+  "orgs.create_btn": "Organisation anlegen",
+  "orgs.col.name": "Organisation",
+  "orgs.col.admin": "Administrator",
+  "orgs.col.created": "Erstellt am",
+  "orgs.no_admin": "Kein Administrator",
+  "orgs.none": "Keine Organisation.",
+  "orgs.replace_admin_btn": "Administrator ersetzen",
+  "orgs.replace_admin_confirm": "Den Administrator von %s ersetzen? Der bisherige Administrator wird ein einfacher Benutzer.",
+  "orgs.err.name_required": "Der Name der Organisation ist erforderlich.",
+  "orgs.err.not_found": "Organisation nicht gefunden.",
+  "orgs.flash.created": "Organisation %s angelegt.",
+  "orgs.flash.admin_replaced": "Administrator ersetzt.",
+  "users.create_help": "Das Konto wird als Benutzer Ihrer Organisation angelegt. Das Startpasswort geben Sie außerhalb von Naria weiter.",
+  "sites.shared_badge": "Geteilt",
+  "site.shared_notice": "Diese Website ist Ihnen zum Lesen freigegeben: Sie sehen ihre Formulare und deren Eingaben, können sie aber nicht ändern.",
+  "site.readers_heading": "Lesen der Eingaben",
+  "site.readers_intro": "Diese Benutzer der Organisation lesen die Eingaben aller Formulare dieser Website, ohne sie ändern zu können.",
+  "site.readers_empty": "Kein Benutzer kann diese Website lesen.",
+  "site.readers_add_label": "Leserecht erteilen an",
+  "site.readers_add_btn": "Leserecht erteilen",
+  "site.readers_remove_btn": "Entfernen",
+  "site.readers_remove_confirm": "Leserecht von %s entfernen?",
+  "site.readers_none_available": "Kein aktiver Benutzer der Organisation, dem das Leserecht erteilt werden kann.",
+  "site.flash.reader_added": "Leserecht erteilt.",
+  "site.flash.reader_refused": "Leserecht nicht erteilt: Dieses Konto ist kein aktiver Benutzer der Organisation oder besitzt die Website bereits.",
+  "site.flash.reader_removed": "Leserecht entfernt.",
+  "role.admin_orga": "Organisations-Administrator",
+  "role.user": "Benutzer"
 }

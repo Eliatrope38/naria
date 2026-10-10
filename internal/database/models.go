@@ -66,6 +66,12 @@ type Form struct {
 	NotificationLang    string
 }
 
+type Organisation struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
 type PasswordResetToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -88,6 +94,13 @@ type Site struct {
 	Domains   []string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type SiteReadGrant struct {
+	SiteID    uuid.UUID
+	UserID    uuid.UUID
+	GrantedBy pgtype.UUID
+	CreatedAt time.Time
 }
 
 type Submission struct {
@@ -117,4 +130,5 @@ type User struct {
 	TotpEnabled  bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	OrgID        pgtype.UUID
 }
