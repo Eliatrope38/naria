@@ -1,0 +1,12 @@
+# Règles par défaut de gitleaks + allowlist des fichiers d'exemple/doc,
+# qui ne contiennent que des valeurs factices (placeholders).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fichiers d'exemple et documentation (placeholders, pas de vrais secrets)"
+paths = [
+  '''\.env\.example''',
+  '''README\.md''',
+  '''docker-compose\.yml''',
+]

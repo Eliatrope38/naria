@@ -1,0 +1,187 @@
+package ui
+
+import "gitlab.com/detag_inno/naria/internal/database"
+
+// AccountPage : « Mon compte » + gestion de la double authentification.
+templ AccountPage(user *database.User, flash, csrf string, backupRemaining int) {
+	@Layout(T(ctx, "account.title"), user) {
+		<div style="max-width:620px;margin:0 auto">
+			<h1>{ T(ctx, "account.heading") }</h1>
+			if flash != "" {
+				<div role="status" aria-live="polite" class="alert alert--success">{ flash }</div>
+			}
+			<div class="service-card" style="margin-bottom:20px">
+				<h2 class="subhead">{ T(ctx, "account.edit_heading") }</h2>
+				<form method="post" action="/account/name" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+					<input type="hidden" name="csrf_token" value={ csrf }/>
+					<label style="flex:1;min-width:200px">
+						<span class="field-label">{ T(ctx, "account.name") }</span>
+						<input type="text" name="name" value={ user.Name } required maxlength="120" class="input"/>
+					</label>
+					<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "account.save") }</button>
+				</form>
+				<form method="post" action="/account/email" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+					<input type="hidden" name="csrf_token" value={ csrf }/>
+					<label style="flex:1;min-width:200px">
+						<span class="field-label">{ T(ctx, "account.email") }</span>
+						<input type="email" name="email" value={ user.Email } required class="input"/>
+					</label>
+					<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "account.save") }</button>
+				</form>
+				<p class="muted" style="font-size:.82rem;margin:0"><strong>{ T(ctx, "account.role") } :</strong> { roleLabel(ctx, user.Role) }</p>
+			</div>
+			<div class="service-card" style="margin-bottom:20px">
+				<h2 class="subhead">{ T(ctx, "account.pwd_heading") }</h2>
+				<form method="post" action="/account/password">
+					<input type="hidden" name="csrf_token" value={ csrf }/>
+					<label style="display:block;margin-bottom:12px">
+						<span class="field-label">{ T(ctx, "account.current_pwd") }</span>
+						<input type="password" name="current_password" required autocomplete="current-password" class="input"/>
+					</label>
+					<label style="display:block;margin-bottom:14px">
+						<span class="field-label">{ T(ctx, "account.new_pwd") }</span>
+						<input type="password" name="new_password" required autocomplete="new-password" class="input"/>
+					</label>
+					<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "account.pwd_change_btn") }</button>
+				</form>
+			</div>
+			<div class="service-card">
+				<h2 class="subhead">{ T(ctx, "account.2fa.heading") }</h2>
+			if user.TotpEnabled {
+				<p style="margin:0 0 10px">
+					<span class="badge badge--ok">{ T(ctx, "common.enabled") }</span>
+					<span class="muted" style="margin-left:8px">{ T(ctx, "account.2fa.enabled_desc") }</span>
+				</p>
+				<p class="muted" style="margin:0 0 14px;font-size:.85rem">
+					{ T(ctx, "account.2fa.backup_remaining") } <strong>{ itoa(int64(backupRemaining)) }</strong>
+					if backupRemaining == 0 {
+						<span style="color:var(--err)">{ T(ctx, "account.2fa.regen_hint") }</span>
+					}
+				</p>
+				<form method="post" action="/account/2fa/disable" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+					<input type="hidden" name="csrf_token" value={ csrf }/>
+					<label>
+						<span class="field-label">{ T(ctx, "account.2fa.disable_code_label") }</span>
+						<input type="text" name="code" inputmode="numeric" pattern="[0-9]*" required autocomplete="off" placeholder="123456" class="input"/>
+					</label>
+					<button type="submit" class="btn btn--ghost">{ T(ctx, "account.2fa.disable_btn") }</button>
+				</form>
+			} else {
+				<p class="muted" style="margin:0 0 14px">{ T(ctx, "account.2fa.disabled_desc") }</p>
+				<a href="/account/2fa/setup" class="btn">{ T(ctx, "account.2fa.enable_btn") }</a>
+			}
+			</div>
+		</div>
+	}
+}
+
+// TOTPCodesPage : affiche les codes de secours une seule fois après activation.
+templ TOTPCodesPage(user *database.User, codes []string) {
+	@Layout(T(ctx, "codes.title"), user) {
+		<h1>{ T(ctx, "codes.heading") }</h1>
+		<div class="service-card" style="max-width:560px">
+			<p class="alert alert--warn">
+				{ T(ctx, "codes.warn_lead") } <strong>{ T(ctx, "codes.warn_once") }</strong> { T(ctx, "codes.warn_mid") } <strong>{ T(ctx, "codes.warn_never") }</strong>.
+			</p>
+			<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0;font-family:ui-monospace,monospace;font-size:1.02rem">
+				for _, c := range codes {
+					<div style="background:var(--neutral-bg);color:var(--ink);border-radius:var(--radius-sm);padding:8px 12px;text-align:center;letter-spacing:.06em">{ c }</div>
+				}
+			</div>
+			<a href="/account" class="btn">{ T(ctx, "codes.saved_btn") }</a>
+		</div>
+	}
+}
+
+// TOTPSetupPage : enrôlement 2FA (scan du QR + confirmation d'un code).
+templ TOTPSetupPage(user *database.User, qr, secret, csrf, errMsg string) {
+	@Layout(T(ctx, "setup.title"), user) {
+		<p><a href="/account" class="muted">{ T(ctx, "setup.back") }</a></p>
+		<h1>{ T(ctx, "setup.heading") }</h1>
+		<div class="service-card" style="max-width:560px">
+			if errMsg != "" {
+				<p role="alert" class="alert alert--error">{ errMsg }</p>
+			}
+			<ol style="padding-left:18px;color:var(--text)">
+				<li>{ T(ctx, "setup.step1") }</li>
+				<li>{ T(ctx, "setup.step2") }</li>
+			</ol>
+			<div style="text-align:center;margin:16px 0">
+				<img src={ qr } alt={ T(ctx, "setup.qr_alt") } style="width:220px;height:220px;margin:0 auto"/>
+			</div>
+			<p class="muted" style="font-size:.82rem;text-align:center">
+				{ T(ctx, "setup.manual") } <code class="mono">{ secret }</code>
+			</p>
+			<form method="post" action="/account/2fa/enable" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:8px">
+				<input type="hidden" name="csrf_token" value={ csrf }/>
+				<label style="flex:1;min-width:160px">
+					<span class="field-label">{ T(ctx, "setup.code_label") }</span>
+					<input type="text" name="code" inputmode="numeric" pattern="[0-9]*" required autocomplete="off" autofocus placeholder="123456" class="input"/>
+				</label>
+				<button type="submit" class="btn">{ T(ctx, "setup.confirm_btn") }</button>
+			</form>
+		</div>
+	}
+}
+
+// TwoFALoginPage : étape de saisie du code lors de la connexion.
+templ TwoFALoginPage(csrf, errMsg string) {
+	<!DOCTYPE html>
+	<html lang={ Lang(ctx) } data-theme={ ThemeAttr(ctx) }>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ T(ctx, "login.verify.title") } - { Theme.Name }</title>
+			<link rel="icon" href={ Theme.FaviconURL }/>
+			<link rel="apple-touch-icon" href={ Theme.FaviconURL }/>
+			<link rel="manifest" href="/manifest.webmanifest"/>
+			<meta name="theme-color" content={ Theme.Color }/>
+			<link rel="stylesheet" href="/static/main.css"/>
+		</head>
+		<body style={ brandVars() }>
+			<main class="container auth-main">
+				<div style="text-align:center;margin-bottom:28px">
+					if Theme.HasLogo {
+						<img src={ Theme.LogoURL } alt={ Theme.Company } style="max-height:60px;margin:0 auto"/>
+					} else {
+						<img src={ Theme.FaviconURL } alt={ Theme.Company } style="height:56px;margin:0 auto"/>
+						<div class="brand-text" style="font-size:1.5rem;font-weight:700;color:var(--ink);margin-top:6px">{ Theme.Name }</div>
+					}
+				</div>
+				<div class="service-card">
+					<h1 style="font-size:1.4rem;text-align:center">{ T(ctx, "login.verify.heading") }</h1>
+					<p class="muted" style="text-align:center">{ T(ctx, "login.verify.help") }</p>
+					if errMsg != "" {
+						<p role="alert" class="alert alert--error">{ errMsg }</p>
+					}
+					<form method="post" action="/login/2fa">
+						<input type="hidden" name="csrf_token" value={ csrf }/>
+						<input type="text" name="code" inputmode="numeric" pattern="[0-9]*" required autofocus autocomplete="one-time-code" placeholder="123456" class="input" style="text-align:center;letter-spacing:.3em;font-size:1.3rem"/>
+						<button type="submit" class="btn btn--block" style="margin-top:16px">{ T(ctx, "login.verify.submit") }</button>
+					</form>
+				</div>
+				<div class="mt-18" style="display:flex;flex-direction:column;align-items:center;gap:10px">
+					<div style="display:inline-flex;align-items:center;gap:12px">
+						<a href={ templ.SafeURL("/theme?to=" + themeToggleTarget(ctx)) } class="theme-toggle" role="button" aria-label={ T(ctx, "theme.toggle") } title={ T(ctx, "theme.toggle") }>◐</a>
+						@langSwitch()
+					</div>
+					@poweredBy()
+					if Legal.HasPrivacy || Legal.HasLegal {
+						<span class="muted" style="font-size:.78rem">
+							if Legal.HasPrivacy {
+								<a href="/confidentialite">{ T(ctx, "footer.privacy") }</a>
+							}
+							if Legal.HasPrivacy && Legal.HasLegal {
+								{ " · " }
+							}
+							if Legal.HasLegal {
+								<a href="/mentions-legales">{ T(ctx, "footer.legal") }</a>
+							}
+						</span>
+					}
+				</div>
+			</main>
+			<script src="/static/app.js" defer></script>
+		</body>
+	</html>
+}

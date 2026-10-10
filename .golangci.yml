@@ -1,0 +1,13 @@
+version: "2"
+
+linters:
+  exclusions:
+    presets:
+      # Close, Flush et les Fprint vers une réponse HTTP : leur erreur n'a pas de
+      # suite utile, et errcheck la réclamerait à chaque defer.
+      - std-error-handling
+
+# La CI refuse un fichier non formaté : autant l'apprendre ici.
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,154 @@
+stages: [test, build, scan, release]
+
+variables:
+  GOTOOLCHAIN: local
+  GOFLAGS: "-buildvcs=false"
+  GOPATH: "$CI_PROJECT_DIR/.go"
+  GOCACHE: "$CI_PROJECT_DIR/.gocache"
+  TEMPL_VERSION: "v0.3.1020"
+  CS_IMAGE: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+
+# Une seule pipeline par MR / branche par défaut / tag, plus les pipelines planifiées
+# (Build > Pipeline schedules) : elles relancent govulncheck sans attendre un commit.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# gofmt + vet + build + tests. Les *_templ.go ne sont pas versionnés : on les génère.
+test:
+  stage: test
+  image: golang:1.26-alpine
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    POSTGRES_DB: test
+    # Active les tests d'intégration (cloisonnement, point d'entrée public), sinon ignorés.
+    TEST_DATABASE_URL: "postgres://test:test@postgres:5432/test?sslmode=disable"
+  # Badge de couverture GitLab : extrait le « total: (statements) NN.N% » affiché en fin de job.
+  coverage: '/total:\s+\(statements\)\s+\d+.\d+%/'
+  cache:
+    key: go-$CI_COMMIT_REF_SLUG
+    paths: [.go/pkg/mod, .gocache]
+  before_script:
+    - apk add --no-cache git
+    - go install github.com/a-h/templ/cmd/templ@$TEMPL_VERSION
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - templ generate
+  script:
+    - test -z "$(gofmt -l cmd internal ui assets.go)" || { echo "fichiers non formatés:"; gofmt -l cmd internal ui assets.go; exit 1; }
+    - go vet ./...
+    - go build ./...
+    - go test -coverpkg=./... -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out | tail -1
+  artifacts:
+    paths: [coverage.out]
+    expire_in: 1 week
+
+# Secrets commités (tout l'historique). Bloque la pipeline si une fuite est trouvée.
+secret-detection:
+  stage: test
+  image:
+    name: ghcr.io/gitleaks/gitleaks:latest
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - gitleaks detect --source . --redact --no-banner
+
+# CVE des dépendances/code (govulncheck), bloquant. Une vuln connue dans une dépendance
+# ou dans du code effectivement atteignable casse la pipeline : c'est une garde de sécurité,
+# pas un rapport. Séparé de gosec (SAST heuristique, plus bruyant) pour ne pas mêler un
+# signal dur à un signal indicatif.
+govulncheck:
+  stage: test
+  image: golang:1.26-alpine
+  cache:
+    key: go-$CI_COMMIT_REF_SLUG
+    paths: [.go/pkg/mod, .gocache]
+  before_script:
+    - apk add --no-cache git
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - go install github.com/a-h/templ/cmd/templ@$TEMPL_VERSION
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - templ generate
+  script:
+    - govulncheck ./...
+
+# SAST heuristique (gosec). Rapport indicatif : ne bloque pas, car sujet aux faux positifs.
+gosec:
+  stage: test
+  image: golang:1.26-alpine
+  allow_failure: true
+  cache:
+    key: go-$CI_COMMIT_REF_SLUG
+    paths: [.go/pkg/mod, .gocache]
+  before_script:
+    - apk add --no-cache git
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - go install github.com/a-h/templ/cmd/templ@$TEMPL_VERSION
+    - go install github.com/securego/gosec/v2/cmd/gosec@latest
+    - templ generate
+  script:
+    - gosec -exclude-generated -exclude-dir='(^|/)\.go/' -quiet ./...
+
+# SAST semgrep (Go, OWASP Top 10, workflows GitHub Actions), bloquant. The rules and
+# exclusions live in scripts/semgrep.sh, shared with the pre-commit and pre-push hooks.
+semgrep:
+  stage: test
+  image:
+    name: semgrep/semgrep:1.180.0
+    entrypoint: [""]
+  script:
+    - sh scripts/semgrep.sh
+
+# Build de l'image et push dans le Container Registry GitLab (Kaniko, sans dind).
+# Uniquement sur les tags : :<tag>, :latest et :<sha>
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_TAG
+      variables:
+        VERSION: "$CI_COMMIT_TAG"
+        TAGS: "--destination $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG --destination $CI_REGISTRY_IMAGE:latest --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --build-arg VERSION="$VERSION" $TAGS
+
+# Scan de vulnérabilités de l'image publiée (Trivy). Rapport, ne bloque pas.
+container-scan:
+  stage: scan
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs: ["build-image"]
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+  script:
+    - trivy image --scanners vuln --severity HIGH,CRITICAL --no-progress --exit-code 1 $CS_IMAGE
+
+# Release GitLab sur un tag, pointant vers l'image publiée.
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Release $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "Naria $CI_COMMIT_TAG"
+    description: "Image Docker : `$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG`"

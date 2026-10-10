@@ -1,0 +1,160 @@
+package ui
+
+import "gitlab.com/detag_inno/naria/internal/database"
+
+// UsersPage : liste des comptes de l'instance + création (administrateur).
+templ UsersPage(user *database.User, rows []UserRowVM, csrf, errMsg, flash string, pg Pagination, q string) {
+	@Layout(T(ctx, "users.title"), user) {
+		<h1>{ T(ctx, "users.title") }</h1>
+		if flash != "" {
+			<div role="status" aria-live="polite" class="alert alert--success">{ flash }</div>
+		}
+		<form method="get" action="/users" class="search-bar" role="search">
+			<input type="search" name="q" value={ q } placeholder={ T(ctx, "users.search_ph") } aria-label={ T(ctx, "users.search_ph") } class="control"/>
+			<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "common.search_btn") }</button>
+		</form>
+		<div class="service-card" style="margin-bottom:24px">
+			<h2 class="subhead">{ T(ctx, "users.new") }</h2>
+			if errMsg != "" {
+				<p role="alert" class="alert alert--error">{ errMsg }</p>
+			}
+			<form method="post" action="/users">
+				<input type="hidden" name="csrf_token" value={ csrf }/>
+				<div style="display:flex;gap:12px;flex-wrap:wrap">
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "users.name") }</span>
+						<input type="text" name="name" required maxlength="120" class="input"/>
+					</label>
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "users.email") }</span>
+						<input type="email" name="email" required class="input"/>
+					</label>
+				</div>
+				<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">
+					<label style="flex:1;min-width:180px">
+						<span class="field-label">{ T(ctx, "users.password_initial") }</span>
+						<input type="text" name="password" required minlength="8" autocomplete="off" class="input"/>
+					</label>
+					<label style="flex:1;min-width:160px">
+						<span class="field-label">{ T(ctx, "users.role") }</span>
+						<select name="role" required class="input">
+							for _, ro := range roleOptions(ctx) {
+								<option value={ ro.Value }>{ ro.Label }</option>
+							}
+						</select>
+					</label>
+				</div>
+				<details class="role-help">
+					<summary>{ T(ctx, "users.role_help_summary") }</summary>
+					<p class="muted" style="white-space:pre-line;font-size:.85rem;margin:8px 0 0">{ T(ctx, "users.role_help") }</p>
+				</details>
+				<button type="submit" class="btn mt-18">{ T(ctx, "users.create_btn") }</button>
+			</form>
+		</div>
+		<div class="service-card card--flush">
+			<div class="table-scroll">
+				<table class="specs-table m-0">
+					<thead>
+						<tr>
+							<th scope="col">{ T(ctx, "users.name") }</th>
+							<th scope="col">{ T(ctx, "users.email") }</th>
+							<th scope="col" style="width:160px">{ T(ctx, "users.role") }</th>
+							<th scope="col" style="width:80px">{ T(ctx, "users.col.sites") }</th>
+							<th scope="col" style="width:90px">{ T(ctx, "users.col.2fa") }</th>
+							<th scope="col" style="width:110px">{ T(ctx, "users.col.status") }</th>
+							<th scope="col" style="width:130px"><span class="muted visually-hidden">{ T(ctx, "common.actions") }</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(rows) == 0 {
+							<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">{ T(ctx, "users.none") }</td></tr>
+						}
+						for _, ur := range rows {
+							<tr>
+								<td class="ink">{ ur.Name }</td>
+								<td class="muted">{ ur.Email }</td>
+								<td>
+									if ur.IsSelf {
+										{ roleLabel(ctx, ur.Role) }
+									} else {
+										<form method="post" action={ templ.SafeURL("/users/" + ur.IDString + "/role") }>
+											<input type="hidden" name="csrf_token" value={ csrf }/>
+											<select name="role" data-autosubmit class="control" aria-label={ T(ctx, "users.role") }>
+												for _, ro := range roleOptions(ctx) {
+													<option value={ ro.Value } selected?={ ro.Value == ur.Role }>{ ro.Label }</option>
+												}
+											</select>
+										</form>
+									}
+								</td>
+								<td class="muted">{ itoa(ur.SiteCount) }</td>
+								<td>
+									if ur.TotpEnabled {
+										<span class="badge badge--ok">{ T(ctx, "common.enabled") }</span>
+									} else {
+										<span class="muted" style="font-size:.8rem">-</span>
+									}
+								</td>
+								<td>
+									if ur.Active {
+										<span class="badge badge--ok">{ T(ctx, "users.status.active") }</span>
+									} else {
+										<span class="badge badge--err">{ T(ctx, "users.status.inactive") }</span>
+									}
+								</td>
+								<td>
+									if !ur.IsSelf {
+										<details class="row-menu">
+											<summary class="btn btn--ghost btn--sm">{ T(ctx, "common.actions") } <span aria-hidden="true">▾</span></summary>
+											<div class="row-menu__panel">
+												<form method="post" action={ templ.SafeURL("/users/" + ur.IDString + "/name") } class="row-menu__form">
+													<input type="hidden" name="csrf_token" value={ csrf }/>
+													<input type="text" name="name" value={ ur.Name } required class="control" aria-label={ T(ctx, "users.name") }/>
+													<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "users.edit_name_btn") }</button>
+												</form>
+												<form method="post" action={ templ.SafeURL("/users/" + ur.IDString + "/password") } data-confirm={ T(ctx, "users.reset_pwd_confirm", ur.Name) } class="row-menu__form">
+													<input type="hidden" name="csrf_token" value={ csrf }/>
+													<input type="password" name="password" placeholder={ T(ctx, "users.new_password_placeholder") } minlength="8" required class="control" autocomplete="new-password"/>
+													<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "users.reset_pwd_btn") }</button>
+												</form>
+												<div class="row-menu__actions">
+													if ur.TotpEnabled {
+														<form method="post" action={ templ.SafeURL("/users/" + ur.IDString + "/reset-2fa") } data-confirm={ T(ctx, "users.reset_2fa_confirm", ur.Name) }>
+															<input type="hidden" name="csrf_token" value={ csrf }/>
+															<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "users.reset_2fa_btn") }</button>
+														</form>
+													}
+													<form
+														method="post"
+														action={ templ.SafeURL("/users/" + ur.IDString + "/toggle") }
+														if ur.Active {
+															data-confirm={ T(ctx, "users.deactivate_confirm", ur.Name) }
+														}
+													>
+														<input type="hidden" name="csrf_token" value={ csrf }/>
+														if ur.Active {
+															<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "users.deactivate_btn") }</button>
+														} else {
+															<button type="submit" class="btn btn--sm">{ T(ctx, "users.activate_btn") }</button>
+														}
+													</form>
+													<form method="post" action={ templ.SafeURL("/users/" + ur.IDString + "/delete") } data-confirm={ T(ctx, "users.delete_confirm", ur.Name) }>
+														<input type="hidden" name="csrf_token" value={ csrf }/>
+														<button type="submit" class="btn btn--ghost btn--sm btn--icon btn--danger" aria-label={ T(ctx, "users.delete_btn") } title={ T(ctx, "users.delete_btn") }>
+															@iconTrash()
+														</button>
+													</form>
+												</div>
+											</div>
+										</details>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
+		@paginationNav(pg)
+	}
+}

@@ -1,0 +1,347 @@
+package ui
+
+import "gitlab.com/detag_inno/naria/internal/database"
+import "gitlab.com/detag_inno/naria/internal/auth"
+import "strings"
+import "strconv"
+import "time"
+
+// paginationNav : contrôles Précédent / page N sur M / Suivant sous une table,
+// en conservant les filtres courants dans les liens. Masqué s'il n'y a qu'une page.
+templ paginationNav(p Pagination) {
+	if p.TotalPages > 1 {
+		<nav aria-label={ T(ctx, "pagination.aria") } style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:18px">
+			if p.Page > 1 {
+				<a class="btn btn--ghost btn--sm" href={ templ.SafeURL(p.Href(p.Page - 1)) } rel="prev">{ T(ctx, "pagination.prev") }</a>
+			} else {
+				<span class="btn btn--ghost btn--sm is-disabled" aria-disabled="true">{ T(ctx, "pagination.prev") }</span>
+			}
+			<span class="muted" aria-current="page">{ T(ctx, "pagination.page", p.Page, p.TotalPages) }</span>
+			if p.Page < p.TotalPages {
+				<a class="btn btn--ghost btn--sm" href={ templ.SafeURL(p.Href(p.Page + 1)) } rel="next">{ T(ctx, "pagination.next") }</a>
+			} else {
+				<span class="btn btn--ghost btn--sm is-disabled" aria-disabled="true">{ T(ctx, "pagination.next") }</span>
+			}
+		</nav>
+	}
+}
+
+// domainList : domaines autorisés d'un site, ou la mention « toute origine ».
+templ domainList(domains []string) {
+	if len(domains) == 0 {
+		<span class="badge badge--warn" title={ T(ctx, "site.domains_any_hint") }>{ T(ctx, "site.domains_any") }</span>
+	} else {
+		<span class="muted" style="font-size:.82rem">{ strings.Join(domains, " · ") }</span>
+	}
+}
+
+// SitesPage : accueil, avec les sites visibles par l'utilisateur et leur création.
+templ SitesPage(user *database.User, sites []database.ListSitesScopedRow, q string, pg Pagination, csrf, errMsg, flash string) {
+	@Layout(T(ctx, "sites.title"), user) {
+		<div class="row-between" style="margin-bottom:24px">
+			<div>
+				<h1 style="margin-bottom:2px">{ T(ctx, "sites.title") }</h1>
+				<p class="muted m-0">{ T(ctx, "sites.subtitle") }</p>
+			</div>
+		</div>
+		if flash != "" {
+			<div role="status" aria-live="polite" class="alert alert--success">{ flash }</div>
+		}
+		<div class="service-card" style="margin-bottom:24px">
+			<h2 class="subhead">{ T(ctx, "sites.new") }</h2>
+			if errMsg != "" {
+				<p role="alert" class="alert alert--error">{ errMsg }</p>
+			}
+			<form method="post" action="/sites" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+				<input type="hidden" name="csrf_token" value={ csrf }/>
+				<label style="flex:1;min-width:200px">
+					<span class="field-label">{ T(ctx, "site.name_label") }</span>
+					<input type="text" name="name" required maxlength="120" class="input"/>
+				</label>
+				<label style="flex:2;min-width:240px">
+					<span class="field-label">{ T(ctx, "site.domains_label") } <span class="muted">{ T(ctx, "common.optional") }</span></span>
+					<input type="text" name="domains" placeholder="exemple.fr, *.exemple.fr" class="input" aria-describedby="site-domains-help"/>
+				</label>
+				<button type="submit" class="btn">{ T(ctx, "sites.create_btn") }</button>
+			</form>
+			<p id="site-domains-help" class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.domains_help") }</p>
+		</div>
+		if len(sites) > 0 || q != "" {
+			<form method="get" action="/" class="search-bar" role="search">
+				<input type="search" name="q" value={ q } placeholder={ T(ctx, "sites.search_ph") } aria-label={ T(ctx, "sites.search_ph") } class="control"/>
+				<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "common.search_btn") }</button>
+			</form>
+		}
+		if len(sites) == 0 {
+			<div class="service-card center empty-state">
+				<svg class="empty-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M22 12h-6l-2 3h-4l-2-3H2"></path>
+					<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+				</svg>
+				if q != "" {
+					<p class="muted m-0">{ T(ctx, "sites.empty_query", q) }</p>
+				} else {
+					<p class="m-0" style="color:var(--ink);font-weight:600">{ T(ctx, "sites.empty") }</p>
+					<p class="muted" style="margin:6px 0 0;font-size:.85rem">{ T(ctx, "sites.empty_hint") }</p>
+				}
+			</div>
+		} else {
+			<div class="service-card card--flush">
+				<div class="table-scroll">
+					<table class="specs-table m-0">
+						<thead>
+							<tr>
+								<th scope="col">{ T(ctx, "sites.col.site") }</th>
+								if auth.IsAdmin(user.Role) {
+									<th scope="col" style="width:180px">{ T(ctx, "sites.col.owner") }</th>
+								}
+								<th scope="col" style="width:120px">{ T(ctx, "sites.col.forms") }</th>
+								<th scope="col" style="width:130px">{ T(ctx, "sites.col.unread") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, s := range sites {
+								<tr>
+									<td>
+										<a href={ templ.SafeURL("/sites/" + s.ID.String()) } class="ink" style="font-weight:600">{ s.Name }</a>
+										<div>
+											@domainList(s.Domains)
+										</div>
+									</td>
+									if auth.IsAdmin(user.Role) {
+										<td class="muted">{ s.OwnerName }</td>
+									}
+									<td>{ itoa(s.FormCount) }</td>
+									<td>
+										if s.UnreadCount > 0 {
+											<span class="badge badge--brand">{ itoa(s.UnreadCount) }</span>
+										} else {
+											<span class="muted">-</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+			@paginationNav(pg)
+		}
+	}
+}
+
+// formModeBadges : destinations d'un formulaire (email et/ou conservé) et canaux
+// de discussion alertés.
+templ formModeBadges(notify, store bool, channels []string) {
+	if notify {
+		<span class="badge badge--brand">{ T(ctx, "form.mode.email") }</span>
+	}
+	if store {
+		<span class="badge badge--neutral">{ T(ctx, "form.mode.stored") }</span>
+	}
+	for _, name := range channels {
+		<span class="badge badge--ink">{ name }</span>
+	}
+}
+
+// SitePage : un site, ses formulaires puis ses réglages.
+templ SitePage(vm SiteVM) {
+	@Layout(vm.Site.Name, vm.User) {
+		<p><a href="/" class="muted">{ T(ctx, "site.back") }</a></p>
+		<div class="row-between" style="margin-bottom:24px">
+			<div>
+				<h1 style="margin-bottom:4px">{ vm.Site.Name }</h1>
+				@domainList(vm.Site.Domains)
+			</div>
+			<a href={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/forms/new") } class="btn">{ T(ctx, "site.new_form_btn") }</a>
+		</div>
+		if vm.Flash != "" {
+			<div role="status" aria-live="polite" class="alert alert--success">{ vm.Flash }</div>
+		}
+		<h2 class="subhead">{ T(ctx, "site.forms_heading") }</h2>
+		if len(vm.Forms) == 0 {
+			<div class="service-card center empty-state">
+				<p class="m-0" style="color:var(--ink);font-weight:600">{ T(ctx, "site.forms_empty") }</p>
+				<p class="muted" style="margin:6px 0 0;font-size:.85rem">{ T(ctx, "site.forms_empty_hint") }</p>
+			</div>
+		} else {
+			<div class="service-card card--flush">
+				<div class="table-scroll">
+					<table class="specs-table m-0">
+						<thead>
+							<tr>
+								<th scope="col">{ T(ctx, "site.col.form") }</th>
+								<th scope="col" style="width:260px">{ T(ctx, "site.col.mode") }</th>
+								<th scope="col" style="width:110px">{ T(ctx, "site.col.status") }</th>
+								<th scope="col" style="width:130px">{ T(ctx, "site.col.submissions") }</th>
+								<th scope="col" style="width:110px">{ T(ctx, "sites.col.unread") }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, f := range vm.Forms {
+								<tr>
+									<td><a href={ templ.SafeURL("/forms/" + f.ID.String()) } class="ink" style="font-weight:600">{ f.Name }</a></td>
+									<td>
+										<span style="display:inline-flex;gap:6px;flex-wrap:wrap">
+											@formModeBadges(f.NotifyEmail, f.StoreSubmissions, alertChannels(f.SlackWebhookUrl, f.TeamsWebhookUrl, f.DiscordWebhookUrl, f.TelegramBotToken))
+										</span>
+									</td>
+									<td>
+										if f.Active {
+											<span class="badge badge--ok">{ T(ctx, "form.status.active") }</span>
+										} else {
+											<span class="badge badge--err">{ T(ctx, "form.status.inactive") }</span>
+										}
+									</td>
+									<td>
+										if f.StoreSubmissions || f.SubmissionCount > 0 {
+											{ itoa(f.SubmissionCount) }
+										} else {
+											<span class="muted" title={ T(ctx, "form.not_stored_hint") }>-</span>
+										}
+									</td>
+									<td>
+										if f.UnreadCount > 0 {
+											<span class="badge badge--brand">{ itoa(f.UnreadCount) }</span>
+										} else {
+											<span class="muted">-</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+		<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.tokens.heading") }</h2>
+		<div class="service-card" style="margin-bottom:20px">
+			<p class="muted" style="font-size:.88rem;margin:0 0 14px">{ T(ctx, "site.tokens.intro") } <code class="mono">{ vm.APIBase }</code></p>
+			if vm.NewToken != "" {
+				<div role="status" aria-live="polite" class="alert alert--success">
+					<p style="margin:0 0 6px">{ T(ctx, "site.tokens.created") }</p>
+					<code class="mono">{ vm.NewToken }</code>
+					<button type="button" class="copy-ref" data-copy={ vm.NewToken } aria-label={ T(ctx, "common.copy") } title={ T(ctx, "common.copy") }>⧉</button>
+				</div>
+			}
+			if vm.TokenErr != "" {
+				<p role="alert" class="alert alert--error">{ vm.TokenErr }</p>
+			}
+			if len(vm.Tokens) > 0 {
+				<div class="table-scroll" style="margin-bottom:18px">
+					<table class="specs-table m-0">
+						<thead>
+							<tr>
+								<th scope="col">{ T(ctx, "site.tokens.col.name") }</th>
+								<th scope="col" style="width:170px">{ T(ctx, "site.tokens.col.creator") }</th>
+								<th scope="col" style="width:120px">{ T(ctx, "site.tokens.col.created") }</th>
+								<th scope="col" style="width:150px">{ T(ctx, "site.tokens.col.expires") }</th>
+								<th scope="col" style="width:150px">{ T(ctx, "site.tokens.col.last_used") }</th>
+								<th scope="col" style="width:110px"><span class="muted visually-hidden">{ T(ctx, "common.actions") }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, tok := range vm.Tokens {
+								<tr>
+									<td class="ink">{ tok.Name }</td>
+									<td class="muted">{ tok.UserName }</td>
+									<td class="muted">{ fmtDate(tok.CreatedAt) }</td>
+									<td>
+										switch  {
+											case !tok.HasAccess:
+												<span class="badge badge--err" title={ T(ctx, "site.tokens.no_access_hint") }>{ T(ctx, "site.tokens.no_access") }</span>
+											case !tok.ExpiresAt.Valid:
+												<span class="muted">{ T(ctx, "site.tokens.never") }</span>
+											case tok.ExpiresAt.Time.Before(time.Now()):
+												<span class="badge badge--err">{ T(ctx, "site.tokens.expired") }</span>
+											default:
+												<span class="muted">{ fmtDate(tok.ExpiresAt.Time) }</span>
+										}
+									</td>
+									<td class="muted">
+										if tok.LastUsedAt.Valid {
+											{ fmtDateTime(tok.LastUsedAt.Time) }
+										} else {
+											{ T(ctx, "site.tokens.never") }
+										}
+									</td>
+									<td>
+										<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/tokens/" + tok.ID.String() + "/delete") } data-confirm={ T(ctx, "site.tokens.revoke_confirm", tok.Name) }>
+											<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+											<button type="submit" class="btn btn--ghost btn--sm btn--danger">{ T(ctx, "site.tokens.revoke_btn") }</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/tokens") } style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<label style="flex:2;min-width:220px">
+					<span class="field-label">{ T(ctx, "site.tokens.name_label") }</span>
+					<input type="text" name="name" required maxlength="80" class="input" aria-describedby="site-token-help"/>
+				</label>
+				<label style="flex:1;min-width:160px">
+					<span class="field-label">{ T(ctx, "site.tokens.lifetime_label") }</span>
+					<select name="expires_in" class="input">
+						for _, days := range TokenLifetimes {
+							<option value={ strconv.Itoa(days) } selected?={ days == defaultTokenLifetime }>{ tokenLifetimeLabel(ctx, days) }</option>
+						}
+					</select>
+				</label>
+				<button type="submit" class="btn btn--ghost">{ T(ctx, "site.tokens.create_btn") }</button>
+			</form>
+			<p id="site-token-help" class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.tokens.help") }</p>
+		</div>
+		<h2 class="subhead" style="margin-top:36px">{ T(ctx, "site.settings_heading") }</h2>
+		<div class="service-card" style="margin-bottom:20px">
+			if vm.ErrMsg != "" {
+				<p role="alert" class="alert alert--error">{ vm.ErrMsg }</p>
+			}
+			<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String()) }>
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<label class="field-row">
+					<span class="field-label">{ T(ctx, "site.name_label") }</span>
+					<input type="text" name="name" value={ vm.Site.Name } required maxlength="120" class="input"/>
+				</label>
+				<label class="field-row">
+					<span class="field-label">{ T(ctx, "site.domains_label") } <span class="muted">{ T(ctx, "common.optional") }</span></span>
+					<input type="text" name="domains" value={ strings.Join(vm.Site.Domains, ", ") } placeholder="exemple.fr, *.exemple.fr" class="input" aria-describedby="site-domains-help"/>
+				</label>
+				<p id="site-domains-help" class="muted" style="font-size:.82rem;margin:-6px 0 16px">{ T(ctx, "site.domains_help") }</p>
+				<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "common.save") }</button>
+			</form>
+		</div>
+		if len(vm.Owners) > 0 {
+			<div class="service-card" style="margin-bottom:20px">
+				<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/owner") } style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+					<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+					<label style="flex:1;min-width:220px">
+						<span class="field-label">{ T(ctx, "site.owner_label") }</span>
+						<select name="owner_id" class="input">
+							for _, o := range vm.Owners {
+								<option value={ o.ID.String() } selected?={ o.ID == vm.Site.OwnerID }>{ o.Name } ({ o.Email })</option>
+							}
+						</select>
+					</label>
+					<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "site.owner_btn") }</button>
+				</form>
+				<p class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.owner_help") }</p>
+			</div>
+		}
+		<div class="service-card danger-zone">
+			<div class="row-between">
+				<div>
+					<strong class="ink">{ T(ctx, "site.delete_heading") }</strong>
+					<p class="muted" style="font-size:.85rem;margin:2px 0 0">{ T(ctx, "site.delete_help") }</p>
+				</div>
+				<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/delete") } data-confirm={ T(ctx, "site.delete_confirm", vm.Site.Name) }>
+					<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+					<button type="submit" class="btn btn--ghost btn--sm btn--danger">{ T(ctx, "site.delete_btn") }</button>
+				</form>
+			</div>
+		</div>
+	}
+}

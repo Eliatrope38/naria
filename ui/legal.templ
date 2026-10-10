@@ -1,0 +1,17 @@
+package ui
+
+import "gitlab.com/detag_inno/naria/internal/database"
+
+// LegalPage met en page une page légale (politique de confidentialité ou
+// mentions légales) à partir d'un fragment HTML fourni par le déploiement via
+// BRAND_PRIVACY_FILE / BRAND_LEGAL_FILE. Le contenu est propre à chaque
+// exploitant : Naria n'impose aucun texte, il ne fait que l'habiller dans la
+// charte. Le fragment vient d'un fichier de configuration monté (au même titre
+// que BRAND_CSS_FILE), donc de confiance ; il est rendu tel quel.
+templ LegalPage(title string, user *database.User, contentHTML string) {
+	@Layout(title, user) {
+		<article class="service-card legal" style="max-width:760px;margin:0 auto">
+			@templ.Raw(contentHTML)
+		</article>
+	}
+}

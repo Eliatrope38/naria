@@ -1,0 +1,440 @@
+package ui
+
+import "gitlab.com/detag_inno/naria/internal/i18n"
+
+// FormEditPage : création d'un formulaire, ou ses réglages.
+templ FormEditPage(vm FormEditVM) {
+	@Layout(formEditTitle(ctx, vm), vm.User) {
+		if vm.IsNew {
+			<p><a href={ templ.SafeURL("/sites/" + vm.SiteID) } class="muted">← { vm.SiteName }</a></p>
+		} else {
+			<p><a href={ templ.SafeURL("/forms/" + vm.FormID) } class="muted">← { vm.FormName }</a></p>
+		}
+		<h1>{ formEditTitle(ctx, vm) }</h1>
+		if vm.Flash != "" {
+			<div role="status" aria-live="polite" class="alert alert--success" style="max-width:720px">{ vm.Flash }</div>
+		}
+		<div class="service-card" style="max-width:720px;margin-bottom:20px">
+			if vm.ErrMsg != "" {
+				<p role="alert" class="alert alert--error">{ vm.ErrMsg }</p>
+			}
+			<form method="post" action={ templ.SafeURL(vm.action()) }>
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<label class="field-row">
+					<span class="field-label">{ T(ctx, "form.name_label") }</span>
+					<input type="text" name="name" value={ vm.Values.Name } required maxlength="120" placeholder={ T(ctx, "form.name_ph") } class="input"/>
+				</label>
+				<fieldset class="choice-group">
+					<legend class="field-label">{ T(ctx, "form.dest.legend") }</legend>
+					<p class="muted choice-group__hint">{ T(ctx, "form.dest.hint") }</p>
+					<div class="choice">
+						<label class="check-row">
+							<input type="checkbox" name="notify_email" value="1" checked?={ vm.Values.NotifyEmail }/>
+							<span>
+								<strong class="ink">{ T(ctx, "form.dest.email") }</strong>
+								<span class="muted choice__desc">{ T(ctx, "form.dest.email_desc") }</span>
+							</span>
+						</label>
+						<div class="choice__body">
+							if !vm.MailEnabled {
+								<p class="alert alert--warn" style="margin-bottom:12px">{ T(ctx, "form.dest.email_disabled") }</p>
+							}
+							<label class="field-row">
+								<span class="field-label">{ T(ctx, "form.recipients_label") }</span>
+								<input type="text" name="recipients" value={ vm.Values.Recipients } placeholder="contact@exemple.fr, equipe@exemple.fr" class="input"/>
+							</label>
+							<label class="check-row">
+								<input type="checkbox" name="email_include_content" value="1" checked?={ vm.Values.IncludeContent }/>
+								<span>
+									{ T(ctx, "form.include_content") }
+									<span class="muted choice__desc">{ T(ctx, "form.include_content_desc") }</span>
+								</span>
+							</label>
+						</div>
+					</div>
+					<div class="choice">
+						<label class="check-row">
+							<input type="checkbox" name="store_submissions" value="1" checked?={ vm.Values.Store }/>
+							<span>
+								<strong class="ink">{ T(ctx, "form.dest.store", Theme.Name) }</strong>
+								<span class="muted choice__desc">
+									if vm.Encrypted {
+										{ T(ctx, "form.dest.store_desc") }
+									} else {
+										{ T(ctx, "form.dest.store_desc_clear") }
+									}
+								</span>
+							</span>
+						</label>
+						<div class="choice__body">
+							<label class="field-row" style="max-width:260px;margin-bottom:0">
+								<span class="field-label">{ T(ctx, "form.retention_label") }</span>
+								<input type="number" name="retention_days" value={ vm.Values.RetentionDays } min="0" max="3650" class="input" aria-describedby="retention-help"/>
+							</label>
+							<p id="retention-help" class="muted" style="font-size:.82rem;margin:6px 0 0">{ T(ctx, "form.retention_help") }</p>
+						</div>
+					</div>
+				</fieldset>
+				<fieldset class="choice-group">
+					<legend class="field-label">{ T(ctx, "form.chat.legend") } <span class="muted">{ T(ctx, "common.optional") }</span></legend>
+					<p class="muted choice-group__hint">{ T(ctx, "form.chat.hint") }</p>
+					<div class="choice">
+						<label class="field-label" for="slack-webhook">{ T(ctx, "form.chat.slack_label") }</label>
+						<div class="input-action">
+							<input id="slack-webhook" type="url" name="slack_webhook_url" value={ vm.Values.SlackWebhookURL } placeholder="https://hooks.slack.com/services/…" autocomplete="off" spellcheck="false" class="input" aria-describedby="slack-webhook-help"/>
+							if !vm.IsNew {
+								<button type="submit" name="channel" value="slack" formaction={ templ.SafeURL("/forms/" + vm.FormID + "/webhooks/test") } formnovalidate class="btn btn--ghost btn--sm">{ T(ctx, "form.chat.test_btn") }</button>
+							}
+						</div>
+						<p id="slack-webhook-help" class="muted" style="font-size:.82rem;margin:6px 0 16px">{ T(ctx, "form.chat.slack_help") }</p>
+						<label class="field-label" for="teams-webhook">{ T(ctx, "form.chat.teams_label") }</label>
+						<div class="input-action">
+							<input id="teams-webhook" type="url" name="teams_webhook_url" value={ vm.Values.TeamsWebhookURL } placeholder="https://….environment.api.powerplatform.com/…" autocomplete="off" spellcheck="false" class="input" aria-describedby="teams-webhook-help"/>
+							if !vm.IsNew {
+								<button type="submit" name="channel" value="teams" formaction={ templ.SafeURL("/forms/" + vm.FormID + "/webhooks/test") } formnovalidate class="btn btn--ghost btn--sm">{ T(ctx, "form.chat.test_btn") }</button>
+							}
+						</div>
+						<p id="teams-webhook-help" class="muted" style="font-size:.82rem;margin:6px 0 16px">{ T(ctx, "form.chat.teams_help") }</p>
+						<label class="field-label" for="discord-webhook">{ T(ctx, "form.chat.discord_label") }</label>
+						<div class="input-action">
+							<input id="discord-webhook" type="url" name="discord_webhook_url" value={ vm.Values.DiscordWebhookURL } placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false" class="input" aria-describedby="discord-webhook-help"/>
+							if !vm.IsNew {
+								<button type="submit" name="channel" value="discord" formaction={ templ.SafeURL("/forms/" + vm.FormID + "/webhooks/test") } formnovalidate class="btn btn--ghost btn--sm">{ T(ctx, "form.chat.test_btn") }</button>
+							}
+						</div>
+						<p id="discord-webhook-help" class="muted" style="font-size:.82rem;margin:6px 0 16px">{ T(ctx, "form.chat.discord_help") }</p>
+						<label class="field-label" for="telegram-token">{ T(ctx, "form.chat.telegram_token_label") }</label>
+						<input id="telegram-token" type="text" name="telegram_bot_token" value={ vm.Values.TelegramBotToken } placeholder="123456789:AA…" autocomplete="off" spellcheck="false" class="input" style="margin-bottom:12px" aria-describedby="telegram-help"/>
+						<label class="field-label" for="telegram-chat">{ T(ctx, "form.chat.telegram_chat_label") }</label>
+						<div class="input-action">
+							<input id="telegram-chat" type="text" name="telegram_chat_id" value={ vm.Values.TelegramChatID } placeholder="-1001234567890" autocomplete="off" spellcheck="false" class="input" aria-describedby="telegram-help"/>
+							if !vm.IsNew {
+								<button type="submit" name="channel" value="telegram" formaction={ templ.SafeURL("/forms/" + vm.FormID + "/webhooks/test") } formnovalidate class="btn btn--ghost btn--sm">{ T(ctx, "form.chat.test_btn") }</button>
+							}
+						</div>
+						<p id="telegram-help" class="muted" style="font-size:.82rem;margin:6px 0 16px">{ T(ctx, "form.chat.telegram_help") }</p>
+						<label class="check-row">
+							<input type="checkbox" name="chat_include_content" value="1" checked?={ vm.Values.ChatIncludeContent }/>
+							<span>
+								{ T(ctx, "form.chat.include") }
+								<span class="muted choice__desc">{ T(ctx, "form.chat.include_desc") }</span>
+							</span>
+						</label>
+					</div>
+				</fieldset>
+				<label class="field-row" style="max-width:260px">
+					<span class="field-label">{ T(ctx, "form.notification_lang_label") }</span>
+					<select name="notification_lang" class="input" aria-describedby="notification-lang-help">
+						for _, loc := range i18n.Locales {
+							<option value={ string(loc) } selected?={ vm.Values.NotificationLang == string(loc) }>{ T(ctx, "lang." + string(loc)) }</option>
+						}
+					</select>
+				</label>
+				<p id="notification-lang-help" class="muted" style="font-size:.82rem;margin:-6px 0 16px">{ T(ctx, "form.notification_lang_help") }</p>
+				<label class="check-row" style="margin-bottom:18px">
+					<input type="checkbox" name="accept_attachments" value="1" checked?={ vm.Values.Attachments }/>
+					<span>
+						{ T(ctx, "form.attachments_label") }
+						<span class="muted choice__desc">
+							{ T(ctx, "form.attachments_desc", vm.Files.MaxFiles, vm.Files.MaxMB) }
+							if vm.Files.EmailMB > 0 {
+								{ T(ctx, "form.attachments_email_limit", vm.Files.EmailMB) }
+							}
+							if vm.Files.Scanned {
+								{ T(ctx, "form.attachments_scanned") }
+							} else {
+								{ T(ctx, "form.attachments_unscanned") }
+							}
+							{ T(ctx, "form.attachments_off") }
+						</span>
+					</span>
+				</label>
+				<label class="check-row" style="margin-bottom:18px">
+					<input type="checkbox" name="captcha" value="1" checked?={ vm.Values.Captcha }/>
+					<span>
+						{ T(ctx, "form.captcha_label") }
+						<span class="muted choice__desc">{ T(ctx, "form.captcha_desc") }</span>
+					</span>
+				</label>
+				<label class="field-row">
+					<span class="field-label">{ T(ctx, "form.redirect_label") } <span class="muted">{ T(ctx, "common.optional") }</span></span>
+					<input type="url" name="redirect_url" value={ vm.Values.RedirectURL } placeholder="https://exemple.fr/merci" class="input" aria-describedby="redirect-help"/>
+				</label>
+				<p id="redirect-help" class="muted" style="font-size:.82rem;margin:-6px 0 16px">{ T(ctx, "form.redirect_help") }</p>
+				if vm.IsNew {
+					<input type="hidden" name="active" value="1"/>
+					<button type="submit" class="btn">{ T(ctx, "form.create_btn") }</button>
+				} else {
+					<label class="check-row" style="margin-bottom:18px">
+						<input type="checkbox" name="active" value="1" checked?={ vm.Values.Active }/>
+						<span>
+							{ T(ctx, "form.active_label") }
+							<span class="muted choice__desc">{ T(ctx, "form.active_desc") }</span>
+						</span>
+					</label>
+					<button type="submit" class="btn">{ T(ctx, "common.save") }</button>
+				}
+			</form>
+		</div>
+		if !vm.IsNew {
+			<div class="service-card danger-zone" style="max-width:720px">
+				<div class="row-between danger-zone__row">
+					<div>
+						<strong class="ink">{ T(ctx, "form.key_heading") }</strong>
+						<p class="muted" style="font-size:.85rem;margin:2px 0 0">{ T(ctx, "form.key_help") }</p>
+					</div>
+					<form method="post" action={ templ.SafeURL("/forms/" + vm.FormID + "/key") } data-confirm={ T(ctx, "form.key_confirm") }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<button type="submit" class="btn btn--ghost btn--sm btn--danger">{ T(ctx, "form.key_btn") }</button>
+					</form>
+				</div>
+				<div class="row-between danger-zone__row">
+					<div>
+						<strong class="ink">{ T(ctx, "form.purge_heading") }</strong>
+						<p class="muted" style="font-size:.85rem;margin:2px 0 0">{ T(ctx, "form.purge_help") }</p>
+					</div>
+					<form method="post" action={ templ.SafeURL("/forms/" + vm.FormID + "/purge") } data-confirm={ T(ctx, "form.purge_confirm") }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<button type="submit" class="btn btn--ghost btn--sm btn--danger">{ T(ctx, "form.purge_btn") }</button>
+					</form>
+				</div>
+				<div class="row-between danger-zone__row">
+					<div>
+						<strong class="ink">{ T(ctx, "form.delete_heading") }</strong>
+						<p class="muted" style="font-size:.85rem;margin:2px 0 0">{ T(ctx, "form.delete_help") }</p>
+					</div>
+					<form method="post" action={ templ.SafeURL("/forms/" + vm.FormID + "/delete") } data-confirm={ T(ctx, "form.delete_confirm", vm.FormName) }>
+						<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+						<button type="submit" class="btn btn--ghost btn--sm btn--danger">{ T(ctx, "form.delete_btn") }</button>
+					</form>
+				</div>
+			</div>
+		}
+	}
+}
+
+// FormPage : un formulaire, son code d'intégration et ses soumissions conservées.
+templ FormPage(vm FormVM) {
+	@Layout(vm.Form.Name, vm.User) {
+		<p><a href={ templ.SafeURL("/sites/" + vm.Form.SiteID.String()) } class="muted">← { vm.Form.SiteName }</a></p>
+		<div class="row-between" style="margin-bottom:24px">
+			<div>
+				<h1 style="margin-bottom:6px">{ vm.Form.Name }</h1>
+				<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center">
+					if vm.Form.Active {
+						<span class="badge badge--ok">{ T(ctx, "form.status.active") }</span>
+					} else {
+						<span class="badge badge--err">{ T(ctx, "form.status.inactive") }</span>
+					}
+					@formModeBadges(vm.Form.NotifyEmail, vm.Form.StoreSubmissions, alertChannels(vm.Form.SlackWebhookUrl, vm.Form.TeamsWebhookUrl, vm.Form.DiscordWebhookUrl, vm.Form.TelegramBotToken))
+					if vm.Form.StoreSubmissions {
+						<span class="muted" style="font-size:.82rem">{ T(ctx, "form.retention.prefix") } { retentionLabel(ctx, vm.Form.RetentionDays) }</span>
+						if vm.StorageMax > 0 {
+							<span class="muted" style="font-size:.82rem">{ T(ctx, "form.storage.usage", fmtSize(ctx, vm.StorageUsed), fmtSize(ctx, vm.StorageMax)) }</span>
+						}
+					}
+				</span>
+			</div>
+			<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/settings") } class="btn btn--ghost">{ T(ctx, "form.settings_btn") }</a>
+		</div>
+		if vm.Flash != "" {
+			<div role="status" aria-live="polite" class="alert alert--success">{ vm.Flash }</div>
+		}
+		if vm.Form.NotifyEmail && !vm.MailEnabled {
+			<div role="alert" class="alert alert--warn">{ T(ctx, "form.dest.email_disabled") }</div>
+		}
+		if vm.StorageNotice != "" {
+			<div role="alert" class="alert alert--warn">{ vm.StorageNotice }</div>
+		}
+		if vm.Form.Captcha && vm.CaptchaUnsolved > 0 {
+			<div role="alert" class="alert alert--warn">{ T(ctx, "form.captcha_unsolved", vm.CaptchaUnsolved) }</div>
+		}
+		<details class="service-card integration" open?={ vm.Total == 0 }>
+			<summary>{ T(ctx, "form.integration.heading") }</summary>
+			<p class="muted" style="font-size:.88rem;margin:12px 0 14px">{ T(ctx, "form.integration.intro") }</p>
+			<table class="specs-table" style="margin-bottom:16px">
+				<tr>
+					<th scope="row" style="width:160px">{ T(ctx, "form.integration.endpoint") }</th>
+					<td><code class="mono">{ vm.Endpoint }</code> <button type="button" class="copy-ref" data-copy={ vm.Endpoint } aria-label={ T(ctx, "common.copy") } title={ T(ctx, "common.copy") }>⧉</button></td>
+				</tr>
+				<tr>
+					<th scope="row" style="width:160px">{ T(ctx, "form.integration.key") }</th>
+					<td><code class="mono">{ vm.Form.AccessKey }</code> <button type="button" class="copy-ref" data-copy={ vm.Form.AccessKey } aria-label={ T(ctx, "common.copy") } title={ T(ctx, "common.copy") }>⧉</button></td>
+				</tr>
+			</table>
+			<div class="code-head">
+				<span class="field-label">HTML</span>
+				<button type="button" class="copy-ref" data-copy={ vm.htmlSnippet(ctx) } aria-label={ T(ctx, "common.copy") } title={ T(ctx, "common.copy") }>⧉ { T(ctx, "common.copy") }</button>
+			</div>
+			<pre class="code-block"><code>{ vm.htmlSnippet(ctx) }</code></pre>
+			<div class="code-head">
+				<span class="field-label">JavaScript <span class="muted">{ T(ctx, "common.optional") }</span></span>
+				<button type="button" class="copy-ref" data-copy={ vm.jsSnippet() } aria-label={ T(ctx, "common.copy") } title={ T(ctx, "common.copy") }>⧉ { T(ctx, "common.copy") }</button>
+			</div>
+			<pre class="code-block"><code>{ vm.jsSnippet() }</code></pre>
+			<p class="muted" style="font-size:.82rem;margin:14px 0 0;white-space:pre-line">{ T(ctx, "form.integration.notes") }</p>
+			<p class="muted" style="font-size:.82rem;margin:6px 0 0">
+				if vm.Form.AcceptAttachments {
+					{ T(ctx, "form.integration.files_on", vm.Files.MaxFiles, vm.Files.MaxMB) }
+				} else {
+					{ T(ctx, "form.integration.files_off") }
+				}
+			</p>
+			if vm.Form.Captcha {
+				<p class="muted" style="font-size:.82rem;margin:6px 0 0">{ T(ctx, "form.integration.captcha_on", instanceURL(vm.Endpoint)) }</p>
+			}
+		</details>
+		if !vm.Form.StoreSubmissions && vm.Total == 0 {
+			<div class="service-card center empty-state mt-18">
+				<p class="m-0" style="color:var(--ink);font-weight:600">{ T(ctx, "form.not_stored") }</p>
+				<p class="muted" style="margin:6px 0 0;font-size:.85rem">{ T(ctx, "form.not_stored_hint") }</p>
+			</div>
+		} else {
+			<div class="row-between" style="margin:32px 0 12px">
+				<h2 class="subhead m-0">{ T(ctx, "submissions.heading", vm.Total) }</h2>
+				if vm.Total > 0 {
+					<div style="display:flex;gap:8px;flex-wrap:wrap">
+						<form method="post" action={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/read") }>
+							<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+							<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "submissions.mark_all_read") }</button>
+						</form>
+						<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/export.csv") } class="btn btn--ghost btn--sm">{ T(ctx, "submissions.export_btn") }</a>
+						if vm.HasAttachments {
+							<a href={ templ.SafeURL("/forms/" + vm.Form.ID.String() + "/export.zip") } class="btn btn--ghost btn--sm">{ T(ctx, "submissions.export_zip_btn") }</a>
+						}
+					</div>
+				}
+			</div>
+			if vm.Total == 0 {
+				<div class="service-card center empty-state">
+					<svg class="empty-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M22 12h-6l-2 3h-4l-2-3H2"></path>
+						<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+					</svg>
+					<p class="m-0" style="color:var(--ink);font-weight:600">{ T(ctx, "submissions.empty") }</p>
+					<p class="muted" style="margin:6px 0 0;font-size:.85rem">{ T(ctx, "submissions.empty_hint") }</p>
+				</div>
+			} else {
+				<div class="service-card card--flush">
+					<div class="table-scroll">
+						<table class="specs-table m-0">
+							<thead>
+								<tr>
+									<th scope="col" style="width:170px">{ T(ctx, "submission.col.received") }</th>
+									<th scope="col">{ T(ctx, "submission.col.preview") }</th>
+									<th scope="col" style="width:110px"><span class="visually-hidden">{ T(ctx, "submission.col.state") }</span></th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, row := range vm.Rows {
+									<tr>
+										<td><a href={ templ.SafeURL("/submissions/" + row.ID) } class="ink" style={ unreadStyle(row.Unread) }>{ fmtDateTime(row.CreatedAt) }</a></td>
+										<td>
+											if row.Unreadable {
+												<span class="badge badge--err">{ T(ctx, "submission.unreadable") }</span>
+											} else {
+												<a href={ templ.SafeURL("/submissions/" + row.ID) } class="preview">
+													for _, f := range row.Preview() {
+														<span class="preview__item"><span class="muted">{ f.Name } :</span> { f.Value }</span>
+													}
+												</a>
+											}
+										</td>
+										<td>
+											if row.Unread {
+												<span class="badge badge--brand">{ T(ctx, "submission.new_badge") }</span>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+				@paginationNav(vm.Pg)
+			}
+		}
+	}
+}
+
+// SubmissionPage : le contenu d'une soumission conservée.
+templ SubmissionPage(vm SubmissionVM) {
+	@Layout(T(ctx, "submission.title"), vm.User) {
+		<p><a href={ templ.SafeURL("/forms/" + vm.Sub.FormID.String()) } class="muted">← { vm.Sub.FormName }</a></p>
+		<div class="service-card" style="max-width:820px">
+			<div class="row-between" style="margin-bottom:16px">
+				<div>
+					<h1 style="font-size:1.4rem;margin-bottom:2px">{ T(ctx, "submission.heading", fmtDateTime(vm.Sub.CreatedAt)) }</h1>
+					<p class="muted m-0" style="font-size:.85rem">{ vm.Sub.SiteName } · { vm.Sub.FormName }</p>
+				</div>
+				<form method="post" action={ templ.SafeURL("/submissions/" + vm.Sub.ID.String() + "/delete") } data-confirm={ T(ctx, "submission.delete_confirm") }>
+					<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+					<button type="submit" class="btn btn--ghost btn--sm btn--icon btn--danger" aria-label={ T(ctx, "submission.delete_btn") } title={ T(ctx, "submission.delete_btn") }>
+						@iconTrash()
+					</button>
+				</form>
+			</div>
+			if vm.Unreadable {
+				<p role="alert" class="alert alert--error m-0">{ T(ctx, "submission.unreadable_help") }</p>
+			} else {
+				<table class="specs-table m-0">
+					for _, f := range vm.Fields {
+						<tr>
+							<th scope="row" style="width:30%">{ f.Name }</th>
+							<td class="field-value">
+								if f.Value == "" {
+									<span class="muted">-</span>
+								} else {
+									{ f.Value }
+								}
+							</td>
+						</tr>
+					}
+				</table>
+				if len(vm.Attachments) > 0 {
+					<h2 class="subhead" style="margin:24px 0 8px">{ T(ctx, "submission.attachments") }</h2>
+					<ul class="m-0" style="padding-left:18px">
+						for _, att := range vm.Attachments {
+							<li>
+								<a href={ templ.SafeURL("/attachments/" + att.ID) } download>{ att.Name }</a>
+								<span class="muted">({ fmtSize(ctx, att.Size) })</span>
+							</li>
+						}
+					</ul>
+				}
+			}
+		</div>
+	}
+}
+
+// PublicResultPage : page de retour affichée au visiteur d'un site client après
+// un envoi sans JavaScript (succès ou échec), quand aucune page de redirection
+// n'est configurée. Volontairement nue : pas de navigation, pas de script, pas
+// de cookie (le visiteur n'est pas un utilisateur de l'interface).
+templ PublicResultPage(ok bool, title, message, backURL string) {
+	<!DOCTYPE html>
+	<html lang={ Lang(ctx) } data-theme={ ThemeAttr(ctx) }>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="robots" content="noindex"/>
+			<title>{ title }</title>
+			<link rel="stylesheet" href="/static/main.css"/>
+		</head>
+		<body style={ brandVars() }>
+			<main class="container auth-main">
+				<div class="service-card center">
+					<h1 style="font-size:1.5rem">{ title }</h1>
+					if ok {
+						<p role="status" class="alert alert--success">{ message }</p>
+					} else {
+						<p role="alert" class="alert alert--error">{ message }</p>
+					}
+					if backURL != "" {
+						<a href={ templ.SafeURL(backURL) } class="btn btn--ghost btn--sm">{ T(ctx, "submit.page.back") }</a>
+					}
+				</div>
+			</main>
+		</body>
+	</html>
+}

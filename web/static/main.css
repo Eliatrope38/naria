@@ -1,0 +1,516 @@
+/* Police embarquée (Poppins, licence SIL OFL, voir fonts/OFL.txt). Servie par
+   l'application elle-même : ouvrir l'interface ne déclenche aucune requête vers
+   un tiers. */
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("/static/fonts/poppins-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("/static/fonts/poppins-latin-500.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("/static/fonts/poppins-latin-600.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 700; font-display: swap; src: url("/static/fonts/poppins-latin-700.woff2") format("woff2"); }
+
+:root {
+  --brand: #197a9c;
+  --brand-700: #146480;
+  --brand-50: #edf4f7;
+  --ink: #15202b;
+  --text: #555c63;
+  --muted: #6b7280;
+  --line: #e8eaed;
+  --bg: #f7f7f7;
+  --card: #ffffff;
+  --ok: #047857;
+  --ok-bg: #ecfdf5;
+  --warn: #92400e;
+  --warn-bg: #fef3c7;
+  --err: #b91c1c;
+  --err-bg: #fee2e2;
+
+  /* Tokens sémantiques dérivés (surchargés en mode sombre plus bas). Ils
+     factorisent les couleurs pour qu'aucune surface ne reste blanche « en dur »
+     quand la palette bascule. */
+  /* Accent de marque lisible sur le fond de page (liens, texte de nav). En
+     clair = --brand ; le mode sombre l'éclaircit sans changer la teinte. */
+  --link: var(--brand);
+  /* Surface « teinte de marque » (badge marque, bandeaux) : suit la marque
+     blanche via --brand-50 en clair. */
+  --brand-surface: var(--brand-50);
+  --brand-surface-border: #d3e5ec;
+  /* Pastille neutre (statuts sans sémantique). */
+  --neutral-bg: #f1f3f5;
+  --neutral-fg: #5a636c;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow-hover: 0 18px 30px -12px rgba(0, 0, 0, .14);
+  --container: 1230px;
+  --header-h: 76px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  /* Sticky footer : la page fait au moins la hauteur de la fenêtre et le
+     contenu pousse le pied en bas, même sur une liste vide. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sticky footer : le contenu principal prend l'espace, le pied ne rétrécit pas.
+   width:100% est indispensable : sans lui, les marges auto de .container font
+   rétrécir main à la largeur du contenu dans le body en flex-column (colonne
+   étroite sur desktop). Avec, main occupe la largeur puis .container la plafonne. */
+main { flex: 1 0 auto; width: 100%; min-width: 0; }
+.site-footer { flex-shrink: 0; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Poppins", sans-serif;
+  color: var(--ink);
+  line-height: 1.25;
+  margin: 0 0 .6em;
+  font-weight: 600;
+}
+h1 { font-size: clamp(1.7rem, 1.2rem + 1.6vw, 2.3rem); }
+h2 { font-size: clamp(1.4rem, 1.1rem + 1vw, 1.9rem); }
+h3 { font-size: 1.25rem; }
+
+a { color: var(--link); text-decoration: none; transition: color .12s ease; }
+a:hover { color: var(--ink); }
+
+img { max-width: 100%; height: auto; display: block; }
+
+p { margin: 0 0 1rem; }
+
+.container {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.section { padding: 56px 0; }
+
+.muted { color: var(--muted); }
+.center { text-align: center; }
+
+/* Boutons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5em;
+  padding: 11px 26px;
+  font: 600 .8rem/1.4 "Poppins", sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #fff;
+  /* --brand-700 (pas --brand) : garanti >= 4.5:1 avec du texte blanc par la
+     dérivation de brandVars(). --brand seul tombe à ~4.46:1 (sous AA) et le
+     texte blanc du bouton devient limite en marque blanche. */
+  background: var(--brand-700);
+  border: 2px solid var(--brand-700);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.btn:hover { background: #000; border-color: #000; color: #fff; }
+/* Ghost : texte de marque sur fond clair -> --brand-700 pour rester >= 4.5:1
+   (le contraste est symétrique : texte foncé sur blanc = blanc sur foncé). */
+.btn--ghost { background: transparent; color: var(--brand-700); }
+.btn--ghost:hover { background: var(--brand-700); color: #fff; border-color: var(--brand-700); }
+.btn--sm { padding: 8px 16px; font-size: .72rem; }
+.btn--block { display: flex; width: 100%; }
+
+/* Header */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.site-header .container {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: var(--header-h);
+}
+.brand-logo img { max-height: 46px; width: auto; }
+.brand-logo .brand-text { font-weight: 700; font-size: 1.3rem; color: var(--ink); letter-spacing: -.01em; }
+.brand-logo .brand-text b { color: var(--link); }
+
+.main-nav { margin-left: auto; }
+.main-nav ul { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.main-nav a {
+  display: block;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: .8rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.main-nav a:hover, .main-nav a.active { color: var(--link); }
+.main-nav form { margin: 0; }
+/* Le bouton de déconnexion (POST anti-CSRF) reprend l'aspect d'un lien de nav. */
+.main-nav .nav-logout-btn {
+  display: block;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: .8rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-family: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.main-nav .nav-logout-btn:hover { color: var(--link); }
+
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  min-width: 44px;
+  min-height: 44px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: auto;
+}
+.nav-toggle span { display: block; width: 24px; height: 2px; background: var(--ink); transition: .2s; }
+
+/* Cartes de contenu (service-card) */
+.service-card { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--brand); border-radius: var(--radius); padding: 24px 22px; }
+.service-card h3 { font-size: 1.08rem; margin: 0 0 8px; }
+.service-card p { font-size: .9rem; color: var(--text); margin: 0; line-height: 1.55; }
+
+/* Cartes statistiques (tableau de bord) */
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.cat-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 18px;
+  text-align: center;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.cat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.cat-card .n { display: block; font-weight: 600; color: var(--ink); }
+.cat-card .c { font-size: .8rem; color: var(--muted); }
+
+/* Pastilles (statut, priorité, état) */
+/* Variantes sémantiques adossées aux tokens : changer un token propage à toutes
+   les pastilles. Alimentées par statusBadgeClass / priorityBadgeClass (Go). */
+.badge { display: inline-block; font-size: .72rem; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.badge--ok { background: var(--ok-bg); color: var(--ok); }
+.badge--warn { background: var(--warn-bg); color: var(--warn); }
+.badge--err { background: var(--err-bg); color: var(--err); }
+.badge--brand { background: var(--brand-surface); color: var(--brand-700); }
+.badge--neutral { background: var(--neutral-bg); color: var(--neutral-fg); }
+.badge--ink { background: var(--line); color: var(--ink); }
+
+/* Tableaux (specs) */
+.specs-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.specs-table th, .specs-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.specs-table th { color: var(--muted); font-weight: 500; width: 42%; }
+
+/* Bannières (erreur / succès / avertissement) */
+/* Alimentent les blocs role="alert" / role="status" ; fond + texte par tokens. */
+.alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: .88rem; margin-bottom: 16px; }
+.alert--error { background: var(--err-bg); color: var(--err); }
+.alert--success { background: var(--ok-bg); color: var(--ok); }
+.alert--warn { background: var(--warn-bg); color: var(--warn); }
+
+/* Footer */
+.site-footer { background: var(--card); border-top: 1px solid var(--line); padding: 56px 0 28px; }
+.footer-bottom { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 22px; font-size: .8rem; color: var(--muted); display: flex; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; align-items: center; }
+/* Sélecteur de langue : de vraies pastilles, nettement séparées du crédit. */
+.lang-switch { gap: 6px; }
+.lang-switch a, .lang-switch span { padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; line-height: 1.7; color: var(--muted); }
+.lang-switch a:hover { border-color: var(--brand); color: var(--brand); }
+.lang-switch [aria-current="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+/* Sur petit écran, le sélecteur de langue et le crédit passent chacun sur
+   leur propre ligne, sinon les pastilles se collent à « Propulsé par … ». */
+@media (max-width: 680px) {
+  .lang-switch, .footer-bottom > span:last-child { flex-basis: 100%; }
+}
+
+/* Tables : défilement horizontal sur petits écrans */
+/* Enveloppe les tables larges pour qu'elles défilent au lieu d'être tronquées
+   par le `overflow:hidden` de la carte (coins arrondis). */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Accessibilité : lien d'évitement */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: var(--brand); color: #fff; padding: 10px 16px; border-radius: 0 0 8px 0;
+}
+.skip-link:focus { left: 0; }
+
+/* Formulaires : champs de saisie */
+.input { width: 100%; padding: 10px 12px; margin-top: 5px; border: 1px solid var(--line); border-radius: var(--radius-sm); font: inherit; font-size: .95rem; background: var(--card); color: var(--ink); }
+.control { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); font: inherit; font-size: .85rem; background: var(--card); color: var(--ink); }
+
+/* Typographie de formulaire */
+.field-label { font-size: .85rem; color: var(--ink); font-weight: 600; }
+.eyebrow { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
+.subhead { font-size: 1.05rem; }
+
+/* Pages légales (aérées, titres discrets) */
+.legal h1 { margin-bottom: 2px; }
+.legal p { font-size: .92rem; line-height: 1.6; margin: 10px 0; }
+.legal ul { font-size: .92rem; line-height: 1.6; margin: 10px 0; padding-left: 20px; }
+.legal li { margin: 5px 0; }
+.legal-h { font-size: 1rem; font-weight: 600; margin: 24px 0 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+
+/* Bouton réduit à une icône (ex. corbeille de suppression). */
+.btn--icon { padding: 8px 10px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Pastille d'aide « ? » avec infobulle native au survol. */
+.help { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); font-size: .7rem; font-weight: 600; cursor: help; vertical-align: middle; }
+
+/* Wrappers de champ */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-row { display: block; margin-bottom: 16px; }
+
+/* Utilitaires a11y / état */
+/* Retire visuellement un libellé tout en le gardant pour les lecteurs d'écran. */
+.visually-hidden { position: absolute; left: -9999px; }
+/* Rend inerte un contrôle désactivé (ex. pagination en bout de liste). */
+.is-disabled { opacity: .5; pointer-events: none; }
+
+/* Structures répétées */
+/* Carte sans marge interne qui rogne son contenu (tables à coins arrondis). */
+.card--flush { padding: 0; overflow: hidden; }
+/* Conteneur étroit et centré des pages d'authentification. */
+.auth-main { max-width: 420px; margin-top: 8vh; }
+/* Ligne d'en-tête : titre à gauche, actions à droite, repli en colonne. */
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* Micro-utilitaires */
+.m-0 { margin: 0; }
+.mt-18 { margin-top: 18px; }
+.ink { color: var(--ink); }
+.mono { font-family: ui-monospace, monospace; }
+
+/* Responsive */
+@media (max-width: 720px) {
+  .main-nav { display: none; position: absolute; top: var(--header-h); left: 0; right: 0; background: var(--card); border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .main-nav.open { display: block; }
+  .main-nav ul { flex-direction: column; gap: 0; }
+  .main-nav a { padding: 12px 20px; }
+  .nav-toggle { display: flex; }
+}
+
+/* Mode sombre (réglage OS) */
+/* Respecte prefers-color-scheme : pas de bouton, pas de persistance JS. On ne
+   redéfinit que les tokens de couleur : le reste de la feuille est déjà écrit
+   en var(). --brand / --brand-700 / --brand-50 ne sont pas touchés ici : ils
+   sont injectés par instance (marque blanche, ui/branding.go) en style inline
+   sur <body>, qui l'emporterait de toute façon sur :root. Les accents dérivés
+   de la marque (--link, --brand-surface) gardent donc la teinte de marque via
+   color-mix() plutôt qu'une couleur figée. */
+/* Thème sombre : appliqué via [data-theme="dark"] posé par le script en <head>
+   (résout localStorage puis prefers-color-scheme), pour permettre le bouton de
+   bascule tout en respectant le réglage système au premier chargement. */
+:root[data-theme="dark"] {
+    /* Le menu ouvert d'un <select>, les sélecteurs de date et les barres de
+       défilement sont dessinés par le navigateur : color-scheme lui dit que la
+       page est sombre, sans quoi il les rend en clair. */
+    color-scheme: dark;
+    --ink: #eef1f5;   /* titres / texte fort */
+    --text: #b9c1cb;  /* corps de texte */
+    --muted: #98a2ae; /* >= 4.5:1 sur --bg et sur --card */
+    --line: #2b313b;  /* bordures / séparateurs discrets */
+    --bg: #12151a;    /* fond de page */
+    --card: #1b1f27;  /* surfaces (cartes, en-tête, pied, champs) */
+
+    /* Accent de marque éclairci pour rester lisible sur fond sombre (teinte
+       conservée : mélange de la marque injectée avec du blanc). */
+    --link: color-mix(in srgb, var(--brand), white 42%);
+
+    /* Statuts : fond sombre teinté + texte clair (>= AA). */
+    --ok: #6ee7b7;   --ok-bg: #103224;
+    --warn: #fcd34d; --warn-bg: #3a2c0f;
+    --err: #fca5a5;  --err-bg: #3a1a1d;
+
+    /* Surface « teinte de marque » : version sombre dérivée de la marque
+       (badge marque lisible). */
+    --brand-surface: color-mix(in srgb, var(--brand), black 62%);
+    --brand-surface-border: color-mix(in srgb, var(--brand), black 42%);
+
+    /* Pastille neutre. */
+    --neutral-bg: #2a303a;
+    --neutral-fg: #c3cbd4;
+
+    /* Ombre plus dense sur fond sombre. */
+    --shadow-hover: 0 18px 30px -12px rgba(0, 0, 0, .55);
+  }
+
+/* Le texte de marque de ces éléments s'appuie sur --brand-700 (foncé, illisible
+   sur fond sombre) : on repasse sur --link, éclairci. Les boutons de suppression
+   (.btn--danger) sont exclus : ils gardent leur rouge, qui a déjà sa variante
+   sombre via --err. */
+:root[data-theme="dark"] .btn--ghost:not(.btn--danger) { color: var(--link); border-color: var(--link); }
+:root[data-theme="dark"] .badge--brand { color: var(--link); }
+/* Le survol « fondu au noir » disparaît sur fond sombre. Plutôt qu'un blanc
+   pur, qui éblouit et sort du thème, on passe sur l'accent de marque éclairci
+   (--link) avec un texte foncé (--bg) : même repère visuel, contraste >= AA. */
+:root[data-theme="dark"] .btn:not(.btn--danger):hover { background: var(--link); border-color: var(--link); color: var(--bg); }
+
+/* Auto-détection système : sans choix explicite (aucun cookie, donc data-theme
+   absent ou vide, ni "dark" ni "light"), on suit prefers-color-scheme.
+   Mêmes tokens que le bloc explicite ci-dessus. La CSP `script-src 'self'`
+   interdisant l'inline, ce repli est fait en CSS pur plutôt qu'en JS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    color-scheme: dark;
+    --ink: #eef1f5; --text: #b9c1cb; --muted: #98a2ae; --line: #2b313b;
+    --bg: #12151a; --card: #1b1f27;
+    --link: color-mix(in srgb, var(--brand), white 42%);
+    --ok: #6ee7b7; --ok-bg: #103224; --warn: #fcd34d; --warn-bg: #3a2c0f;
+    --err: #fca5a5; --err-bg: #3a1a1d;
+    --brand-surface: color-mix(in srgb, var(--brand), black 62%);
+    --brand-surface-border: color-mix(in srgb, var(--brand), black 42%);
+    --neutral-bg: #2a303a; --neutral-fg: #c3cbd4;
+    --shadow-hover: 0 18px 30px -12px rgba(0, 0, 0, .55);
+  }
+  :root:not([data-theme="dark"]):not([data-theme="light"]) .btn--ghost:not(.btn--danger) { color: var(--link); border-color: var(--link); }
+  :root:not([data-theme="dark"]):not([data-theme="light"]) .badge--brand { color: var(--link); }
+  :root:not([data-theme="dark"]):not([data-theme="light"]) .btn:not(.btn--danger):hover { background: var(--link); border-color: var(--link); color: var(--bg); }
+}
+
+/* Bascule de thème dans le header. */
+.theme-toggle { background: none; border: 1px solid var(--line); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; color: var(--ink); font-size: 1rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.theme-toggle:hover { border-color: var(--brand); color: var(--brand); }
+.header-utils { display: inline-flex; align-items: center; gap: 10px; margin-left: 18px; }
+.header-utils .lang-switch { gap: 6px; }
+/* La nav porte l'auto-marge (ancrée à droite), les utils restent près du logo :
+   changer de langue fait varier la largeur des libellés de nav dans l'espace
+   auto invisible, sans décaler ni les utils ni le bord droit. */
+.main-nav { margin-left: auto; }
+
+/* Aide dépliable « ? » (rôles), utilisable au tap sur mobile. */
+.role-help { margin-top: 14px; }
+.role-help summary { cursor: pointer; color: var(--brand-700); font-size: .85rem; font-weight: 600; width: fit-content; }
+
+/* Bouton « copier » (adresse d'envoi, clé d'accès, code d'intégration). */
+.copy-ref { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: .95rem; line-height: 1; padding: 2px 5px; vertical-align: middle; border-radius: var(--radius-sm); }
+.copy-ref:hover { color: var(--brand); }
+.copy-ref.copied { color: var(--ok); }
+
+/* État vide illustré. */
+.empty-state { padding: 44px 22px; }
+.empty-icon { color: var(--line); margin: 0 auto 12px; }
+
+/* Barre de recherche / filtres pleine largeur */
+/* Une seule ligne alignée sur la largeur des tableaux : le champ de recherche
+   prend la place restante, les filtres et le bouton gardent leur taille. */
+.search-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+.search-bar .control { flex: 1 1 240px; min-width: 0; }
+.search-bar select.control { flex: 0 1 auto; }
+
+/* Menu d'actions par ligne (tables d'administration) */
+/* <details> natif : un seul bouton fermé, un panneau en flux (pas d'absolu :
+   .table-scroll rognerait un menu flottant) qui regroupe les actions. */
+.row-menu > summary { list-style: none; white-space: nowrap; cursor: pointer; }
+.row-menu > summary::-webkit-details-marker { display: none; }
+.row-menu__panel { margin-top: 8px; padding: 12px; min-width: 280px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); display: flex; flex-direction: column; gap: 10px; }
+.row-menu__form { display: flex; gap: 6px; align-items: center; }
+.row-menu__form .control { flex: 1 1 140px; min-width: 0; }
+.row-menu__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn--danger { color: var(--err); border-color: var(--err); }
+.btn--danger:hover { background: var(--err); border-color: var(--err); color: var(--card); }
+
+/* Listes déroulantes : rendu homogène entre navigateurs */
+/* Le rendu natif des <select> varie d'un OS à l'autre (flèche grise, coins
+   carrés, hauteur différente des champs voisins). On neutralise l'apparence
+   système et on dessine le chevron nous-mêmes (SVG inline, autorisé par
+   `img-src data:` dans la CSP), avec la même bordure, le même rayon et la même
+   hauteur que les champs texte. Le menu ouvert reste celui du navigateur :
+   impossible de le styler sans réécrire le composant en JS. */
+select.control, select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%236b7280' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+  line-height: 1.35;
+}
+select.control { min-height: 38px; }
+select.input { min-height: 44px; }
+select.control:hover, select.input:hover { border-color: var(--muted); }
+select.control:focus-visible, select.input:focus-visible,
+.control:focus-visible, .input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+  border-color: var(--brand);
+}
+select.control:disabled, select.input:disabled { cursor: default; opacity: .6; }
+/* Couleurs du menu ouvert, là où le navigateur les respecte (Chromium,
+   Firefox) ; ailleurs, color-scheme suffit à le passer en sombre. */
+select.control option, select.input option { background: var(--card); color: var(--ink); }
+/* Chevron clair sur fond sombre (thème explicite et repli système). */
+:root[data-theme="dark"] select.control, :root[data-theme="dark"] select.input {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2398a2ae' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) select.control,
+  :root:not([data-theme="dark"]):not([data-theme="light"]) select.input {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2398a2ae' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+}
+
+/* Cloudflare Turnstile : le script injecte une boîte de largeur fixe dans ce
+   conteneur ; on la centre sous les champs, comme le bouton de connexion. */
+.cf-turnstile { display: flex; justify-content: center; margin-bottom: 20px; }
+
+/* Cases à cocher titrées (réglages d'un formulaire) */
+/* Une case, un titre et sa description sur la même ligne de base ; le corps
+   dépendant (destinataires, durée…) s'aligne sous le texte, pas sous la case. */
+.check-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check-row input[type="checkbox"] { margin: 5px 0 0; width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--brand); }
+.choice__desc { display: block; font-size: .82rem; line-height: 1.5; }
+.choice-group { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
+.choice-group legend { padding: 0; }
+.choice-group__hint { font-size: .82rem; margin: 2px 0 12px; }
+.choice { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.choice + .choice { margin-top: 12px; }
+.choice__body { margin: 14px 0 0 26px; }
+
+/* Champ suivi d'un bouton d'action sur la même ligne (webhook + « Tester »). */
+.input-action { display: flex; gap: 8px; align-items: stretch; margin-top: 5px; }
+.input-action .input { margin-top: 0; flex: 1 1 auto; min-width: 0; }
+.input-action .btn { flex: 0 0 auto; }
+
+/* Zone de danger (suppressions irréversibles) */
+.danger-zone { border-top-color: var(--err); }
+.danger-zone__row + .danger-zone__row { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+/* Code d'intégration */
+.integration > summary { cursor: pointer; font-weight: 600; color: var(--ink); font-size: 1.05rem; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 6px; }
+.code-block { margin: 0; padding: 14px 16px; background: var(--neutral-bg); color: var(--ink); border-radius: var(--radius-sm); overflow-x: auto; font: .8rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.code-block code { font: inherit; white-space: pre; }
+code.mono { font-size: .85rem; word-break: break-all; }
+
+/* Soumissions */
+/* Aperçu d'une ligne : quelques champs à la suite, tronqués sur une ligne. */
+.preview { display: flex; gap: 4px 18px; flex-wrap: wrap; color: var(--text); font-size: .86rem; }
+.preview:hover { color: var(--ink); }
+.preview__item { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Valeur d'un champ : le texte saisi par le visiteur, sauts de ligne compris. */
+.field-value { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }

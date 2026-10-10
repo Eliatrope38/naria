@@ -1,0 +1,141 @@
+# Miroir de .gitlab-ci.yml : mêmes contrôles, mêmes seuils. Les modifications
+# se répercutent des deux côtés.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TEMPL_VERSION: v0.3.1020
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Générer le code templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}
+          "$(go env GOPATH)/bin/templ" generate
+
+      - name: Vérifier le formatage
+        run: |
+          unformatted="$(gofmt -l cmd internal ui assets.go)"
+          if [ -n "$unformatted" ]; then
+            echo "fichiers non formatés:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - run: go vet ./...
+
+      - run: go build ./...
+
+      - name: Tests
+        run: go test -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Couverture
+        run: go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+  secret-detection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            detect --source /repo --redact --no-banner
+
+  # The rules and exclusions live in scripts/semgrep.sh, shared with the pre-commit
+  # and pre-push hooks. pipx runs on the host: a container would hit git's
+  # ownership check on the mounted workspace.
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Installer semgrep
+        run: pipx install semgrep==1.180.0
+
+      - name: semgrep
+        run: sh scripts/semgrep.sh
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Installer les outils et générer le code templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/templ" generate
+
+      - run: '"$(go env GOPATH)/bin/govulncheck" ./...'
+
+  gosec:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Installer les outils et générer le code templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          "$(go env GOPATH)/bin/templ" generate
+
+      - run: >-
+          "$(go env GOPATH)/bin/gosec" -exclude-generated
+          -exclude-dir='(^|/)\.go/' -quiet ./...

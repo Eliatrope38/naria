@@ -1,0 +1,152 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-naria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naria}
+      POSTGRES_DB: ${POSTGRES_DB:-naria}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-naria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      # Lié à localhost uniquement (jamais exposé publiquement ; l'app passe par le réseau docker).
+      - "127.0.0.1:5432:5432"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://naria:naria@db:5432/naria?sslmode=disable}
+      APP_ENV: ${APP_ENV:-dev}
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      ADDR: ":8080"
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-}
+      # Point d'entrée public des formulaires.
+      SUBMISSION_MAX_KB: ${SUBMISSION_MAX_KB:-}
+      ATTACHMENTS_MAX_MB: ${ATTACHMENTS_MAX_MB:-}
+      FORM_STORAGE_MAX_MB: ${FORM_STORAGE_MAX_MB:-}
+      # Antivirus des pièces jointes (service clamav ci-dessous). Vide = désactivé.
+      CLAMAV_ADDR: ${CLAMAV_ADDR:-}
+      SUBMIT_RATE_LIMIT: ${SUBMIT_RATE_LIMIT:-}
+      # Seul Caddy est cru sur l'adresse des visiteurs, pas le reste du réseau :
+      # un appel direct sur le port 8080 arrive par la passerelle.
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${DOCKER_SUBNET_PREFIX:-172.30.250}.2/32}
+      # Hôtes supplémentaires acceptés pour les webhooks d'alerte (Slack/Teams/Discord).
+      WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+      # Marque blanche (valeurs Naria par défaut)
+      BRAND_NAME: ${BRAND_NAME:-Naria}
+      BRAND_COMPANY: ${BRAND_COMPANY:-Naria}
+      BRAND_SUPPORT_EMAIL: ${BRAND_SUPPORT_EMAIL:-}
+      BRAND_TAGLINE: ${BRAND_TAGLINE:-}
+      BRAND_COLOR: ${BRAND_COLOR:-#197a9c}
+      BRAND_COLOR_DARK: ${BRAND_COLOR_DARK:-}
+      BRAND_LOGO_FILE: ${BRAND_LOGO_FILE:-}
+      BRAND_FAVICON_FILE: ${BRAND_FAVICON_FILE:-}
+      BRAND_CSS_FILE: ${BRAND_CSS_FILE:-}
+      BRAND_PRIVACY_FILE: ${BRAND_PRIVACY_FILE:-}
+      BRAND_LEGAL_FILE: ${BRAND_LEGAL_FILE:-}
+      # Cloudflare Turnstile sur le login (les deux clés ou aucune).
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      # Email sortant : smtp (défaut) ou graph (Microsoft Graph).
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      # SMTP. SMTP_HOST vide = désactivé.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS: ${SMTP_TLS:-starttls}
+      # Microsoft Graph, avec EMAIL_PROVIDER=graph : les quatre sont requises.
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+      GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+      GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+      GRAPH_MAILBOX: ${GRAPH_MAILBOX:-}
+    # Marque blanche : décommenter pour fournir logo/CSS/pages légales
+    # volumes:
+    #   - ./branding:/branding:ro
+    ports:
+      # Lié à localhost ; en prod c'est Caddy (profil prod) qui expose en HTTPS.
+      - "127.0.0.1:8080:8080"
+
+  # Antivirus des pièces jointes (profil antivirus) : avec CLAMAV_ADDR=clamav:3310
+  # dans .env, `docker compose --profile antivirus up -d`. Il n'est joignable que
+  # sur le réseau docker, où les fichiers lui parviennent en clair. Il télécharge
+  # ses signatures au premier démarrage et les tient à jour ensuite ; elles
+  # occupent plus d'un Go de mémoire, le double pendant leur rechargement.
+  clamav:
+    image: clamav/clamav:stable
+    profiles: ["antivirus"]
+    restart: unless-stopped
+    volumes:
+      - clamav-data:/var/lib/clamav
+
+  # Sauvegardes Postgres planifiées (profil prod), dans le volume db-backups.
+  # Les soumissions y sont chiffrées comme dans la base : une sauvegarde sans
+  # APP_SECRET_KEY ne livre aucun contenu. Sauvegardez la clé à part.
+  backup:
+    image: prodrigestivill/postgres-backup-local:17
+    profiles: ["prod"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB:-naria}
+      POSTGRES_USER: ${POSTGRES_USER:-naria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naria}
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 14
+      BACKUP_KEEP_WEEKS: 8
+      BACKUP_KEEP_MONTHS: 6
+    volumes:
+      - db-backups:/backups
+
+  # Reverse-proxy HTTPS, activé en prod : `docker compose --profile prod up -d`
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["prod"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-forms.exemple.fr}
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      default:
+        # Adresse fixe : c'est elle que l'application déclare comme proxy.
+        ipv4_address: ${DOCKER_SUBNET_PREFIX:-172.30.250}.2
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+# Sous-réseau fixe, pour que l'adresse de Caddy soit connue d'avance. Les autres
+# conteneurs prennent la leur dans ip_range, qui ne la contient pas. Sans
+# gateway, docker placerait la passerelle au début de ip_range.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET_PREFIX:-172.30.250}.0/24
+          gateway: ${DOCKER_SUBNET_PREFIX:-172.30.250}.1
+          ip_range: ${DOCKER_SUBNET_PREFIX:-172.30.250}.128/25
+
+volumes:
+  db-data:
+  clamav-data:
+  db-backups:
+  caddy-data:
+  caddy-config:

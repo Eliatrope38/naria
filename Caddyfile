@@ -1,0 +1,7 @@
+{$DOMAIN} {
+	encode gzip
+	# Aucun journal d'accès : Caddy n'en écrit pas sans directive `log`. Ne pas en
+	# ajouter sans y masquer l'adresse IP : ce serait conserver celle de chaque
+	# visiteur des sites clients, ce que l'application s'interdit.
+	reverse_proxy app:8080
+}

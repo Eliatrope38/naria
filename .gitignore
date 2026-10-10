@@ -1,0 +1,19 @@
+.env
+/tmp/
+*.log
+
+# Binaires
+/server
+/createadmin
+/bin/
+
+# Code généré par templ (régénéré au build)
+*_templ.go
+
+# Profils de couverture (produits par la CI et en local)
+coverage.out
+
+.claude
+
+.DS_Store
+tickets

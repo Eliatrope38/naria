@@ -1,0 +1,56 @@
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # Outils du poste, sans environnement géré par pre-commit. Ils analysent le
+  # module entier et lisent les *_templ.go : `make generate` doit être passé.
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: staticcheck
+        name: staticcheck
+        entry: staticcheck ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      # Le hook de commit ne lit que l'index : un secret entré par un commit
+      # fait sans lui n'apparaîtrait qu'en CI, qui relit tout l'historique.
+      - id: gitleaks-history
+        name: gitleaks (historique)
+        entry: gitleaks git --redact --no-banner
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Au push et sans condition sur les fichiers : la base de vulnérabilités
+      # change sans que le code change.
+      # Same rules as the CI jobs (scripts/semgrep.sh). Scans the whole tree on
+      # every commit and push, since a finding can come from any file.
+      - id: semgrep
+        name: semgrep
+        entry: sh scripts/semgrep.sh
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+
+      - id: govulncheck
+        name: govulncheck
+        entry: govulncheck ./...
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]

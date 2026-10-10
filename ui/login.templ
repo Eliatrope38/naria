@@ -1,0 +1,84 @@
+package ui
+
+// LoginPage : page de connexion (hors Layout, pas de header car non connecté).
+templ LoginPage(csrfToken, errMsg, notice string) {
+	<!DOCTYPE html>
+	<html lang={ Lang(ctx) } data-theme={ ThemeAttr(ctx) }>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ T(ctx, "login.title") } - { Theme.Name }</title>
+			<link rel="icon" href={ Theme.FaviconURL }/>
+			<link rel="apple-touch-icon" href={ Theme.FaviconURL }/>
+			<link rel="manifest" href="/manifest.webmanifest"/>
+			<meta name="theme-color" content={ Theme.Color }/>
+			<link rel="stylesheet" href="/static/main.css"/>
+			if TurnstileSiteKey != "" {
+				<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+			}
+		</head>
+		<body style={ brandVars() }>
+			<main class="container auth-main">
+				<div style="text-align:center;margin-bottom:28px">
+					if Theme.HasLogo {
+						<img src={ Theme.LogoURL } alt={ Theme.Company } style="max-height:72px;margin:0 auto"/>
+					} else {
+						<img src={ Theme.FaviconURL } alt={ Theme.Company } style="height:64px;margin:0 auto"/>
+						<div class="brand-text" style="font-size:1.8rem;font-weight:700;color:var(--ink);margin-top:8px">{ Theme.Name }</div>
+					}
+					if Theme.Tagline != "" {
+						<p class="muted" style="margin:14px auto 0;max-width:340px;font-size:.9rem">{ Theme.Tagline }</p>
+					}
+				</div>
+				<div class="service-card">
+					<h1 style="font-size:1.5rem;text-align:center">{ T(ctx, "login.heading") }</h1>
+					if notice != "" {
+						<p role="status" class="alert alert--success">{ notice }</p>
+					}
+					if errMsg != "" {
+						<p id="login-error" role="alert" class="alert alert--error">{ errMsg }</p>
+					}
+					<form method="post" action="/login">
+						<input type="hidden" name="csrf_token" value={ csrfToken }/>
+						<label style="display:block;margin-bottom:14px">
+							<span class="field-label">{ T(ctx, "login.email") }</span>
+							<input type="email" name="email" required autofocus autocomplete="username" aria-describedby="login-error" class="input"/>
+						</label>
+						<label style="display:block;margin-bottom:20px">
+							<span class="field-label">{ T(ctx, "login.password") }</span>
+							<input type="password" name="password" required autocomplete="current-password" aria-describedby="login-error" class="input"/>
+						</label>
+						if TurnstileSiteKey != "" {
+							<div class="cf-turnstile" data-sitekey={ TurnstileSiteKey } data-language={ Lang(ctx) }></div>
+						}
+						<button type="submit" class="btn btn--block">{ T(ctx, "login.submit") }</button>
+					</form>
+					if ForgotPasswordEnabled {
+						<p class="mt-18" style="text-align:center;font-size:.85rem;margin-bottom:0"><a href="/login/forgot">{ T(ctx, "login.forgot_link") }</a></p>
+					}
+				</div>
+				<div class="mt-18" style="display:flex;flex-direction:column;align-items:center;gap:10px">
+					<div style="display:inline-flex;align-items:center;gap:12px">
+						<a href={ templ.SafeURL("/theme?to=" + themeToggleTarget(ctx)) } class="theme-toggle" role="button" aria-label={ T(ctx, "theme.toggle") } title={ T(ctx, "theme.toggle") }>◐</a>
+						@langSwitch()
+					</div>
+					@poweredBy()
+					if Legal.HasPrivacy || Legal.HasLegal {
+						<span class="muted" style="font-size:.78rem">
+							if Legal.HasPrivacy {
+								<a href="/confidentialite">{ T(ctx, "footer.privacy") }</a>
+							}
+							if Legal.HasPrivacy && Legal.HasLegal {
+								{ " · " }
+							}
+							if Legal.HasLegal {
+								<a href="/mentions-legales">{ T(ctx, "footer.legal") }</a>
+							}
+						</span>
+					}
+				</div>
+			</main>
+			<script src="/static/app.js" defer></script>
+		</body>
+	</html>
+}

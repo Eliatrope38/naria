@@ -1,0 +1,130 @@
+package ui
+
+import "gitlab.com/detag_inno/naria/internal/database"
+import "gitlab.com/detag_inno/naria/internal/auth"
+import "gitlab.com/detag_inno/naria/internal/i18n"
+import "strings"
+
+// Layout est la coquille HTML commune (charte main.css).
+templ Layout(title string, user *database.User) {
+	<!DOCTYPE html>
+	<html lang={ Lang(ctx) } data-theme={ ThemeAttr(ctx) }>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } - { Theme.Name }</title>
+			<link rel="icon" href={ Theme.FaviconURL }/>
+			<link rel="apple-touch-icon" href={ Theme.FaviconURL }/>
+			<link rel="manifest" href="/manifest.webmanifest"/>
+			<meta name="theme-color" content={ Theme.Color }/>
+			<link rel="stylesheet" href="/static/main.css"/>
+			<script src="/static/app.js" defer></script>
+		</head>
+		<body style={ brandVars() }>
+			<a href="#main" class="skip-link">{ T(ctx, "nav.skip") }</a>
+			@header(user)
+			<main id="main" class="container section">
+				{ children... }
+			</main>
+			@footer()
+		</body>
+	</html>
+}
+
+templ header(user *database.User) {
+	<header class="site-header">
+		<div class="container">
+			<a href="/" class="brand-logo" style="display:inline-flex;align-items:center;gap:10px">
+				if Theme.HasLogo {
+					<img src={ Theme.LogoURL } alt={ Theme.Company }/>
+				} else {
+					<img src={ Theme.FaviconURL } alt={ Theme.Company } style="max-height:38px"/>
+					<span class="brand-text">{ Theme.Name }</span>
+				}
+			</a>
+			<div class="header-utils">
+				<a href={ templ.SafeURL("/theme?to=" + themeToggleTarget(ctx)) } class="theme-toggle" role="button" aria-label={ T(ctx, "theme.toggle") } title={ T(ctx, "theme.toggle") }>◐</a>
+				@langSwitch()
+			</div>
+			if user != nil {
+				<button type="button" class="nav-toggle" aria-expanded="false" aria-controls="main-nav" aria-label={ T(ctx, "nav.menu") }>
+					<span aria-hidden="true"></span>
+					<span aria-hidden="true"></span>
+					<span aria-hidden="true"></span>
+				</button>
+				<nav id="main-nav" class="main-nav">
+					<ul>
+						<li><a href="/">{ T(ctx, "nav.sites") }</a></li>
+						if auth.IsAdmin(user.Role) {
+							<li><a href="/users">{ T(ctx, "nav.users") }</a></li>
+						}
+						<li><a href="/account">{ T(ctx, "nav.account") }</a></li>
+						<li>
+							<form method="post" action="/logout">
+								<input type="hidden" name="csrf_token" value={ csrfToken(ctx) }/>
+								<button type="submit" class="nav-logout-btn">{ T(ctx, "nav.logout") }</button>
+							</form>
+						</li>
+					</ul>
+				</nav>
+			}
+		</div>
+	</header>
+}
+
+templ footer() {
+	<footer class="site-footer">
+		<div class="container footer-bottom">
+			<span>
+				© { Theme.Company }
+				if Theme.SupportEmail != "" {
+					· { T(ctx, "footer.support") } · { Theme.SupportEmail }
+				}
+			</span>
+			if !Prod {
+				<span class="muted" style="display:inline-flex;align-items:center;gap:12px;font-size:.78rem">
+					<span>{ T(ctx, "footer.version") } { Version }</span>
+					<span id="health" data-health data-online={ T(ctx, "footer.online") } data-offline={ T(ctx, "footer.offline") } style="white-space:nowrap">●</span>
+				</span>
+			}
+			@poweredBy()
+			if Legal.HasPrivacy || Legal.HasLegal {
+				<span class="muted" style="font-size:.78rem">
+					if Legal.HasPrivacy {
+						<a href="/confidentialite">{ T(ctx, "footer.privacy") }</a>
+					}
+					if Legal.HasPrivacy && Legal.HasLegal {
+						{ " · " }
+					}
+					if Legal.HasLegal {
+						<a href="/mentions-legales">{ T(ctx, "footer.legal") }</a>
+					}
+				</span>
+			}
+		</div>
+	</footer>
+}
+
+// langSwitch : sélecteur FR | EN | IT | DE. Un GET /lang?to=… pose le cookie de langue et
+// renvoie sur la page courante (aucune donnée mutée, donc pas de jeton CSRF
+// requis, disponible aussi hors session). La langue active porte aria-current.
+templ langSwitch() {
+	<nav class="lang-switch" aria-label={ T(ctx, "lang.label") } style="display:inline-flex;gap:8px;align-items:center;font-size:.78rem">
+		for _, loc := range i18n.Locales {
+			if Lang(ctx) == string(loc) {
+				<span aria-current="true" lang={ string(loc) }>{ strings.ToUpper(string(loc)) }</span>
+			} else {
+				<a href={ templ.SafeURL("/lang?to=" + string(loc)) } hreflang={ string(loc) } lang={ string(loc) }>{ strings.ToUpper(string(loc)) }</a>
+			}
+		}
+	</nav>
+}
+
+// poweredBy : crédit projet (constant, conservé même en marque blanche) + lien GitLab public.
+templ poweredBy() {
+	<span class="muted" style="font-size:.78rem">
+		{ T(ctx, "footer.powered_by") }
+		<a href="https://gitlab.com/detag_inno/naria" target="_blank" rel="noopener">Naria</a>
+		{ T(ctx, "footer.open_source") }
+	</span>
+}
