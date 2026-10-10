@@ -4,7 +4,7 @@
 [![GitHub pipeline](https://github.com/Eliatrope38/naria/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Eliatrope38/naria/actions/workflows/ci.yml)
 [![GitLab coverage](https://gitlab.com/detag_inno/naria/badges/main/coverage.svg)](https://gitlab.com/detag_inno/naria/-/commits/main)
 [![Apache 2.0 license](https://img.shields.io/badge/licence-Apache%202.0-blue.svg)](LICENSE)
-[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8.svg?logo=go&logoColor=white)](go.mod)
+[![Go 1.27](https://img.shields.io/badge/Go-1.27-00ADD8.svg?logo=go&logoColor=white)](go.mod)
 
 A self-hosted back end for the forms on your websites. Naria is a self-hosted alternative to Web3Forms, built around privacy: your visitors' data does not pass through any third party. It is written in Go, uses `templ` for server-side rendering (no JavaScript build step) and PostgreSQL, and ships as a single binary and a container image.
 
@@ -279,7 +279,7 @@ make run              # starts the app (generates the templ files along the way)
 make test-secu        # integration tests against a throwaway PostgreSQL
 ```
 
-The stack is Go 1.26, [`chi`](https://github.com/go-chi/chi), [`sqlc`](https://sqlc.dev), [`goose`](https://github.com/pressly/goose) (migrations) and [`templ`](https://templ.guide) (typed templates). Rendering is entirely server-side: there is no bundler and no JavaScript dependency at runtime. Integration tests run against a real PostgreSQL, both locally and in CI.
+The stack is Go 1.27, [`chi`](https://github.com/go-chi/chi), [`sqlc`](https://sqlc.dev), [`goose`](https://github.com/pressly/goose) (migrations) and [`templ`](https://templ.guide) (typed templates). Rendering is entirely server-side: there is no bundler and no JavaScript dependency at runtime. Integration tests run against a real PostgreSQL, both locally and in CI.
 
 Before proposing a change:
 

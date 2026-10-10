@@ -20,7 +20,7 @@ workflow:
 # gofmt + vet + build + tests. Les *_templ.go ne sont pas versionnés : on les génère.
 test:
   stage: test
-  image: golang:1.26-alpine
+  image: golang:1.27-alpine
   services:
     - name: postgres:17-alpine
       alias: postgres
@@ -67,7 +67,7 @@ secret-detection:
 # signal dur à un signal indicatif.
 govulncheck:
   stage: test
-  image: golang:1.26-alpine
+  image: golang:1.27-alpine
   cache:
     key: go-$CI_COMMIT_REF_SLUG
     paths: [.go/pkg/mod, .gocache]
@@ -83,7 +83,7 @@ govulncheck:
 # SAST heuristique (gosec). Rapport indicatif : ne bloque pas, car sujet aux faux positifs.
 gosec:
   stage: test
-  image: golang:1.26-alpine
+  image: golang:1.27-alpine
   allow_failure: true
   cache:
     key: go-$CI_COMMIT_REF_SLUG
