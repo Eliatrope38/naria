@@ -248,7 +248,7 @@ func (a *App) SetSiteOwner(w http.ResponseWriter, r *http.Request) {
 	})
 	newOwner, err := a.Q.GetUserByID(r.Context(), ownerID)
 	if err != nil {
-		log.Printf("ERROR site: nom du nouveau propriétaire id=%s: %v", ownerID, err)
+		log.Printf("ERROR site: nom du nouveau propriétaire id=%s: %q", ownerID, err.Error()) // #nosec G706 -- ownerID is a parsed UUID; the error is quoted (%q escapes CR/LF)
 	}
 	web.Flash(a.Sessions, r, tr(r, "site.flash.owner_changed", newOwner.Name))
 	http.Redirect(w, r, "/sites/"+site.ID.String(), http.StatusSeeOther)

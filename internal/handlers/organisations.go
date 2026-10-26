@@ -184,7 +184,7 @@ func (a *App) ReplaceOrgAdmin(w http.ResponseWriter, r *http.Request) {
 			a.renderOrganisations(w, r, tr(r, "users.err.email_exists"))
 			return
 		}
-		log.Printf("ERROR organisations: remplacement de l'administrateur de %s: %v", orgID, err)
+		log.Printf("ERROR organisations: remplacement de l'administrateur de %s: %q", orgID, err.Error()) // #nosec G706 -- orgID is a parsed UUID; the error is quoted (%q escapes CR/LF)
 		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
 		return
 	}
