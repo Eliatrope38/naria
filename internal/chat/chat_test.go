@@ -478,7 +478,7 @@ func TestTelegramPayload(t *testing.T) {
 }
 
 func TestTelegramClean(t *testing.T) {
-	const z = "​"
+	const z = "\u200b"
 	cases := []struct{ in, want string }{
 		{"", ""},
 		{"sans arobase", "sans arobase"},
