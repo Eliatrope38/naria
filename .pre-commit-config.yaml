@@ -11,6 +11,14 @@ repos:
   # module entier et lisent les *_templ.go : `make generate` doit être passé.
   - repo: local
     hooks:
+      # Runs first: it regenerates the *_templ.go the next hooks read.
+      - id: build
+        name: go build
+        entry: sh scripts/check-build.sh
+        language: system
+        files: (\.go|\.templ|go\.mod|go\.sum|Dockerfile|\.ya?ml)$
+        pass_filenames: false
+
       - id: golangci-lint
         name: golangci-lint
         entry: golangci-lint run ./...
