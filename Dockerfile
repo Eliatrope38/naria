@@ -10,7 +10,7 @@ ARG VERSION=dev
 
 COPY . .
 # Génère le code templ puis compile deux binaires statiques.
-RUN go install github.com/a-h/templ/cmd/templ@v0.3.1020 && templ generate
+RUN go install github.com/a-h/templ/cmd/templ@v0.3.1100 && templ generate
 RUN CGO_ENABLED=0 go build -trimpath \
     -ldflags="-s -w -X gitlab.com/detag_inno/naria/internal/version.Version=$VERSION" \
     -o /out/server ./cmd/server

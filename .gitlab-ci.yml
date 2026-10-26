@@ -5,7 +5,7 @@ variables:
   GOFLAGS: "-buildvcs=false"
   GOPATH: "$CI_PROJECT_DIR/.go"
   GOCACHE: "$CI_PROJECT_DIR/.gocache"
-  TEMPL_VERSION: "v0.3.1020"
+  TEMPL_VERSION: "v0.3.1100"
   CS_IMAGE: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
 
 # Une seule pipeline par MR / branche par défaut / tag, plus les pipelines planifiées
