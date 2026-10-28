@@ -63,6 +63,13 @@ func TestValidate(t *testing.T) {
 		{Discord, "https://discord.com/api/webhooks/1/T/slack", ErrInvalidURL},
 		{Discord, "https://discord.com/api/webhooks/1%2FT", ErrInvalidURL},
 		{Discord, "https://discord.com/api/webhooks/../v10/auth/login", ErrInvalidURL},
+
+		// strings.ToLower folds "İ" to "i" and the Kelvin sign to "k": the host would pass as an
+		// official one, then be sent in its IDNA form, another domain.
+		{Discord, "https://dİscord.com/api/webhooks/1/T", ErrInvalidURL},
+		{Discord, "https://d%C4%B0scord.com/api/webhooks/1/T", ErrInvalidURL},
+		{Slack, "https://hoo\u212As.slack.com/services/T/B/X", ErrInvalidURL},
+		{Slack, "https://chat.ınterne.exemple/hooks/abc", ErrInvalidURL},
 	}
 	for _, tc := range cases {
 		if err := n.Validate(tc.ch, tc.raw); !errors.Is(err, tc.want) {

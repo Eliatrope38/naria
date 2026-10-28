@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"gitlab.com/detag_inno/naria/internal/submission"
 )
@@ -102,6 +103,12 @@ func (n *Notifier) Validate(ch Channel, raw string) error {
 func (n *Notifier) parse(ch Channel, raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Hostname() == "" || len(raw) > 2000 {
+		return nil, ErrInvalidURL
+	}
+	// strings.ToLower folds some non-ASCII letters to ASCII ("İ" to "i", the Kelvin sign to "k"),
+	// while the request goes out to the IDNA form of the original host: another domain. Every
+	// official host is ASCII, and an operator writes theirs in punycode.
+	if strings.ContainsFunc(u.Hostname(), func(r rune) bool { return r >= utf8.RuneSelf }) {
 		return nil, ErrInvalidURL
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
