@@ -35,7 +35,9 @@ func (a *App) submissionEmail(form database.GetFormByAccessKeyRow, meta submissi
 	}
 
 	msg.Subject = loc.T("mail.submission.subject", form.SiteName, form.Name)
-	if s := oneLine(meta.Subject, maxSubjectLen); s != "" {
+	// Defanged first, since it lengthens the text: the cut comes after, so the
+	// subject stays within its bound.
+	if s := oneLine(submission.Defang(meta.Subject), maxSubjectLen); s != "" {
 		msg.Subject = "[" + form.SiteName + "] " + s
 	}
 	msg.ReplyTo = submission.ReplyAddress(meta, data)
@@ -56,14 +58,15 @@ func oneLine(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	s = s[:max]
-	for !utf8.ValidString(s) { // do not cut in the middle of a character
-		s = s[:len(s)-1]
+	cut := max
+	for !utf8.ValidString(s[:cut]) { // a cut inside a character leaves invalid UTF-8
+		cut--
 	}
-	return s + "…"
+	return s[:submission.SafeCut(s, cut)] + "…"
 }
 
-// submissionEmailHTML lays out the notification. All visitor content is escaped.
+// submissionEmailHTML lays out the notification. All visitor content is escaped, and
+// its links are defanged so that the mail client does not make them clickable.
 func submissionEmailHTML(intro, note string, fields []submission.Field, link, button, footer, color string) string {
 	var b strings.Builder
 	b.WriteString(`<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#15202b">`)
@@ -74,9 +77,9 @@ func submissionEmailHTML(intro, note string, fields []submission.Field, link, bu
 	if len(fields) > 0 {
 		b.WriteString(`<table style="border-collapse:collapse;width:100%;max-width:640px">`)
 		for _, f := range fields {
-			value := strings.ReplaceAll(html.EscapeString(f.Value), "\n", "<br>")
+			value := strings.ReplaceAll(html.EscapeString(submission.Defang(f.Value)), "\n", "<br>")
 			b.WriteString(`<tr><th style="text-align:left;vertical-align:top;padding:8px 12px 8px 0;border-bottom:1px solid #e8eaed;color:#6b7280;font-weight:normal;width:32%">` +
-				html.EscapeString(f.Name) +
+				html.EscapeString(submission.Defang(f.Name)) +
 				`</th><td style="vertical-align:top;padding:8px 0;border-bottom:1px solid #e8eaed">` + value + `</td></tr>`)
 		}
 		b.WriteString(`</table>`)

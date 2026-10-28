@@ -60,8 +60,8 @@ type App struct {
 	quotaAlertMu    sync.Mutex
 	quotaAlertAfter map[uuid.UUID]time.Time
 	Captcha         *captcha.Checker
-	captchaMu       sync.Mutex
-	captchaWatch    map[uuid.UUID]*captchaWatch
+	captchaWatch    refusalWatch
+	linkWatch       refusalWatch
 	// nil disables alerts.
 	Chat *chat.Notifier
 	// WebhookCrypto encrypts webhook addresses at rest (nil means plain text).

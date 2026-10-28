@@ -64,6 +64,7 @@ type Form struct {
 	AcceptAttachments   bool
 	Captcha             bool
 	NotificationLang    string
+	RefuseLinks         bool
 }
 
 type Organisation struct {
