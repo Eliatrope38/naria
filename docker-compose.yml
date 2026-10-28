@@ -40,7 +40,7 @@ services:
       # Seul Caddy est cru sur l'adresse des visiteurs, pas le reste du réseau :
       # un appel direct sur le port 8080 arrive par la passerelle.
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-${DOCKER_SUBNET_PREFIX:-172.30.250}.2/32}
-      # Hôtes supplémentaires acceptés pour les webhooks d'alerte (Slack/Teams/Discord).
+      # Hôtes supplémentaires acceptés pour les webhooks d'alerte (Slack/Teams/Discord/kChat).
       WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
       # Marque blanche (valeurs Naria par défaut)
       BRAND_NAME: ${BRAND_NAME:-Naria}

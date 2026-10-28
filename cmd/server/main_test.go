@@ -1568,7 +1568,7 @@ func webhookColumn(t *testing.T, e testEnv, form database.Form, column string) (
 	return stored
 }
 
-func TestAlertesSlackTeamsEtDiscord(t *testing.T) {
+func TestAlertesSlackTeamsDiscordEtKChat(t *testing.T) {
 	hook := newChatHook(t)
 	e := setup(t, hook.trust)
 	c := newClient()
@@ -1578,7 +1578,7 @@ func TestAlertesSlackTeamsEtDiscord(t *testing.T) {
 
 	resp := postForm(t, c, settings, formValues(token, url.Values{
 		"slack_webhook_url": {hook.url("/slack/SECRET-S")}, "teams_webhook_url": {hook.url("/teams/SECRET-T")},
-		"discord_webhook_url": {hook.url("/discord/SECRET-D")},
+		"discord_webhook_url": {hook.url("/discord/SECRET-D")}, "kchat_webhook_url": {hook.url("/kchat/SECRET-K")},
 	}))
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusSeeOther {
@@ -1587,19 +1587,20 @@ func TestAlertesSlackTeamsEtDiscord(t *testing.T) {
 	// A webhook address is a secret: encrypted in the database.
 	slack, teams := webhookColumns(t, e, e.fx.formA)
 	discord := webhookColumn(t, e, e.fx.formA, "discord_webhook_url")
-	for name, col := range map[string]*string{"slack": slack, "teams": teams, "discord": discord} {
+	kchat := webhookColumn(t, e, e.fx.formA, "kchat_webhook_url")
+	for name, col := range map[string]*string{"slack": slack, "teams": teams, "discord": discord, "kchat": kchat} {
 		if col == nil || !strings.HasPrefix(*col, "enc1:") || strings.Contains(*col, "SECRET") {
 			t.Errorf("webhook %s non chiffré en base : %v", name, col)
 		}
 	}
 	// Its owner finds it in their settings.
-	if _, body := get(t, c, settings); !strings.Contains(body, "/slack/SECRET-S") || !strings.Contains(body, "/teams/SECRET-T") || !strings.Contains(body, "/discord/SECRET-D") {
+	if _, body := get(t, c, settings); !strings.Contains(body, "/slack/SECRET-S") || !strings.Contains(body, "/teams/SECRET-T") || !strings.Contains(body, "/discord/SECRET-D") || !strings.Contains(body, "/kchat/SECRET-K") {
 		t.Errorf("les réglages doivent réafficher les adresses enregistrées")
 	}
 
 	// By default the alert carries nothing of what the visitor wrote.
 	storeSubmission(t, e, e.fx.formA, "https://exemple.fr", "name=Zorglub&email=zorglub%40exemple.org&message=donnee-privee")
-	paths := []string{"/slack/SECRET-S", "/teams/SECRET-T", "/discord/SECRET-D"}
+	paths := []string{"/slack/SECRET-S", "/teams/SECRET-T", "/discord/SECRET-D", "/kchat/SECRET-K"}
 	for _, path := range paths {
 		msg := hook.received(t, path, 1)[0]
 		for _, private := range []string{"donnee-privee", "Zorglub", "zorglub@exemple.org"} {
@@ -1614,19 +1615,21 @@ func TestAlertesSlackTeamsEtDiscord(t *testing.T) {
 	// Each address receives the format of its service: a column crossed with another would show here.
 	for path, marker := range map[string]string{
 		"/slack/SECRET-S": `"blocks"`, "/teams/SECRET-T": "AdaptiveCard", "/discord/SECRET-D": `"allowed_mentions":{"parse":[]}`,
+		"/kchat/SECRET-K": `{"text":"**Nouvelle soumission : Contact Alpha**`,
 	} {
 		if msg := hook.received(t, path, 1)[0]; !strings.Contains(msg, marker) {
 			t.Errorf("%s : %s attendu dans le message : %s", path, marker, msg)
 		}
 	}
-	if _, body := get(t, c, e.url+"/forms/"+e.fx.formA.ID.String()); !strings.Contains(body, ">Discord<") {
-		t.Errorf("la page du formulaire doit afficher le badge Discord")
+	if _, body := get(t, c, e.url+"/forms/"+e.fx.formA.ID.String()); !strings.Contains(body, ">Discord<") || !strings.Contains(body, ">kChat<") {
+		t.Errorf("la page du formulaire doit afficher les badges Discord et kChat")
 	}
 
 	// On explicit request, the content is attached.
 	resp = postForm(t, c, settings, formValues(token, url.Values{
 		"slack_webhook_url": {hook.url("/slack/SECRET-S")}, "teams_webhook_url": {hook.url("/teams/SECRET-T")},
-		"discord_webhook_url": {hook.url("/discord/SECRET-D")}, "chat_include_content": {"1"},
+		"discord_webhook_url": {hook.url("/discord/SECRET-D")}, "kchat_webhook_url": {hook.url("/kchat/SECRET-K")},
+		"chat_include_content": {"1"},
 	}))
 	resp.Body.Close()
 	resp2, out := submit(t, e.url, submitOpts{path: "/f/" + e.fx.formA.AccessKey, body: "message=contenu-voulu", origin: "https://exemple.fr"})
@@ -1646,6 +1649,9 @@ func TestAlertesSlackTeamsEtDiscord(t *testing.T) {
 	}
 	if discord := webhookColumn(t, e, e.fx.formA, "discord_webhook_url"); discord != nil {
 		t.Errorf("après retrait de Discord : discord=%v", discord)
+	}
+	if kchat := webhookColumn(t, e, e.fx.formA, "kchat_webhook_url"); kchat != nil {
+		t.Errorf("après retrait de kChat : kchat=%v", kchat)
 	}
 }
 
@@ -1729,6 +1735,10 @@ func TestWebhookRefuseLesAdressesNonAutorisees(t *testing.T) {
 		{"discord_webhook_url": {"https://discord.com.evil.tld/api/webhooks/1/T"}},
 		{"discord_webhook_url": {"http://discord.com/api/webhooks/1/T"}},
 		{"discord_webhook_url": {"https://discord.com/api/v10/auth/login"}},
+		{"kchat_webhook_url": {"https://127.0.0.1/hooks/abc"}},
+		{"kchat_webhook_url": {"https://equipe.kchat.infomaniak.com.evil.tld/hooks/abc"}},
+		{"kchat_webhook_url": {"http://equipe.kchat.infomaniak.com/hooks/abc"}},
+		{"kchat_webhook_url": {"https://equipe.kchat.infomaniak.com/api/v4/posts"}},
 	} {
 		for _, path := range []string{"/settings", "/webhooks/test"} {
 			vals := formValues(token, bad)
@@ -1738,6 +1748,9 @@ func TestWebhookRefuseLesAdressesNonAutorisees(t *testing.T) {
 			}
 			if bad.Get("discord_webhook_url") != "" {
 				vals.Set("channel", "discord")
+			}
+			if bad.Get("kchat_webhook_url") != "" {
+				vals.Set("channel", "kchat")
 			}
 			resp := postForm(t, c, base+path, vals)
 			body, _ := io.ReadAll(resp.Body)
@@ -1749,6 +1762,9 @@ func TestWebhookRefuseLesAdressesNonAutorisees(t *testing.T) {
 			if bad.Get("discord_webhook_url") != "" && !strings.Contains(string(body), "Webhook Discord invalide") {
 				t.Errorf("POST %s %v : le refus ne vient pas de la validation de l'adresse", path, bad)
 			}
+			if bad.Get("kchat_webhook_url") != "" && !strings.Contains(string(body), "Webhook kChat invalide") {
+				t.Errorf("POST %s %v : le refus ne vient pas de la validation de l'adresse", path, bad)
+			}
 		}
 	}
 	if slack, teams := webhookColumns(t, e, e.fx.formA); slack != nil || teams != nil {
@@ -1757,11 +1773,15 @@ func TestWebhookRefuseLesAdressesNonAutorisees(t *testing.T) {
 	if discord := webhookColumn(t, e, e.fx.formA, "discord_webhook_url"); discord != nil {
 		t.Errorf("une adresse Discord refusée a été enregistrée : %v", discord)
 	}
+	if kchat := webhookColumn(t, e, e.fx.formA, "kchat_webhook_url"); kchat != nil {
+		t.Errorf("une adresse kChat refusée a été enregistrée : %v", kchat)
+	}
 	// An official address is accepted (nothing is called at save time).
 	resp := postForm(t, c, base+"/settings", formValues(token, url.Values{
 		"slack_webhook_url":   {"https://hooks.slack.com/services/T000/B000/XXXX"},
 		"teams_webhook_url":   {"https://abc.de.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/w/triggers/manual/paths/invoke?api-version=1&sig=s"},
 		"discord_webhook_url": {"https://discord.com/api/webhooks/123456789/TOKEN"},
+		"kchat_webhook_url":   {"https://equipe.kchat.infomaniak.com/hooks/0192c4e8-5b1a-7d3e-9f40-1a2b3c4d5e6f"},
 	}))
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusSeeOther {
@@ -1822,6 +1842,17 @@ func TestBoutonTesterLeWebhook(t *testing.T) {
 	}
 	if discord := webhookColumn(t, e, e.fx.formA, "discord_webhook_url"); discord != nil {
 		t.Errorf("le test a enregistré l'adresse Discord : %v", discord)
+	}
+	resp = postForm(t, a, testURL, formValues(token, url.Values{"channel": {"kchat"}, "kchat_webhook_url": {hook.url("/kchat")}}))
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("test kChat : statut %d", resp.StatusCode)
+	}
+	if msgs := hook.received(t, "/kchat", 1); !strings.Contains(msgs[0], `{"text":"**Message de test`) {
+		t.Errorf("message de test kChat inattendu : %s", msgs[0])
+	}
+	if kchat := webhookColumn(t, e, e.fx.formA, "kchat_webhook_url"); kchat != nil {
+		t.Errorf("le test a enregistré l'adresse kChat : %v", kchat)
 	}
 	hook.mu.Lock()
 	leaked := len(hook.got["/slack"]) + len(hook.got["/bot"+telegramToken+"/sendMessage"])
@@ -2124,7 +2155,7 @@ func auditEntries(t *testing.T, e testEnv, formID, action string, secrets ...str
 		t.Fatalf("lecture de l'audit: %v", err)
 	}
 	defer rows.Close()
-	known := []string{"slack", "teams", "discord", "telegram", "changed", "name", "site", "chat_content", "ip"}
+	known := []string{"slack", "teams", "discord", "kchat", "telegram", "changed", "name", "site", "chat_content", "ip"}
 	var out []map[string]string
 	for rows.Next() {
 		var detail string
@@ -2208,6 +2239,7 @@ func TestAuditDesReglagesDuFormulaire(t *testing.T) {
 		{"Slack retiré", del("slack_webhook_url"), map[string]string{"slack": "removed", "name": alpha, "chat_content": "false"}},
 		{"Teams retiré, Discord ajouté", func() { cur.Del("teams_webhook_url"); cur.Set("discord_webhook_url", hook.url("/discord/SECRET-D")) },
 			map[string]string{"teams": "removed", "discord": "added", "name": alpha, "chat_content": "false"}},
+		{"kChat ajouté", set("kchat_webhook_url", hook.url("/kchat/SECRET-K")), map[string]string{"kchat": "added", "name": alpha, "chat_content": "false"}},
 		{"Telegram ajouté", set("telegram_bot_token", telegramToken, "telegram_chat_id", "-100123"), map[string]string{"telegram": "added", "name": alpha, "chat_content": "false"}},
 		{"jeton Telegram remplacé", set("telegram_bot_token", otherToken), map[string]string{"telegram": "replaced", "name": alpha, "chat_content": "false"}},
 		{"discussion Telegram remplacée", set("telegram_chat_id", "-100999"), map[string]string{"telegram": "replaced", "name": alpha, "chat_content": "false"}},
@@ -2232,8 +2264,8 @@ func TestAuditDesReglagesDuFormulaire(t *testing.T) {
 		{"page de retour retirée", del("redirect_url"), map[string]string{"changed": "redirect", "name": beta, "chat_content": "true"}},
 		{"plus conservé", del("store_submissions"), map[string]string{"changed": "store", "name": beta, "chat_content": "true"}},
 		{"contenu retiré des alertes", del("chat_include_content"), map[string]string{"changed": "chat_content", "name": beta, "chat_content": "false"}},
-		{"Discord et Telegram retirés", del("discord_webhook_url", "telegram_bot_token", "telegram_chat_id"),
-			map[string]string{"discord": "removed", "telegram": "removed", "name": beta, "chat_content": "false"}},
+		{"Discord, kChat et Telegram retirés", del("discord_webhook_url", "kchat_webhook_url", "telegram_bot_token", "telegram_chat_id"),
+			map[string]string{"discord": "removed", "kchat": "removed", "telegram": "removed", "name": beta, "chat_content": "false"}},
 	} {
 		tc.change()
 		save(http.StatusSeeOther)

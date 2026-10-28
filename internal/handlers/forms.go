@@ -84,6 +84,7 @@ type formSettings struct {
 	SlackURL   string
 	TeamsURL   string
 	DiscordURL string
+	KChatURL   string
 	// Telegram bot token and chat ID, set
 	// together or not at all.
 	TelegramToken      string
@@ -111,6 +112,7 @@ func (a *App) readFormSettings(r *http.Request, siteDomains []string, lang strin
 		SlackWebhookURL:    strings.TrimSpace(r.FormValue("slack_webhook_url")),
 		TeamsWebhookURL:    strings.TrimSpace(r.FormValue("teams_webhook_url")),
 		DiscordWebhookURL:  strings.TrimSpace(r.FormValue("discord_webhook_url")),
+		KChatWebhookURL:    strings.TrimSpace(r.FormValue("kchat_webhook_url")),
 		TelegramBotToken:   strings.TrimSpace(r.FormValue("telegram_bot_token")),
 		TelegramChatID:     strings.TrimSpace(r.FormValue("telegram_chat_id")),
 		ChatIncludeContent: r.FormValue("chat_include_content") != "",
@@ -130,8 +132,8 @@ func (a *App) validateFormSettings(r *http.Request, v ui.FormValues, siteDomains
 		Name: v.Name, Active: v.Active, NotifyEmail: v.NotifyEmail, Store: v.Store, IncludeContent: v.IncludeContent,
 		Attachments: v.Attachments, Captcha: v.Captcha, RefuseLinks: v.RefuseLinks,
 		SlackURL: v.SlackWebhookURL, TeamsURL: v.TeamsWebhookURL, DiscordURL: v.DiscordWebhookURL,
-		ChatIncludeContent: v.ChatIncludeContent,
-		TelegramToken:      v.TelegramBotToken, TelegramChatID: v.TelegramChatID,
+		KChatURL: v.KChatWebhookURL, ChatIncludeContent: v.ChatIncludeContent,
+		TelegramToken: v.TelegramBotToken, TelegramChatID: v.TelegramChatID,
 		NotificationLang: v.NotificationLang,
 	}
 
@@ -200,6 +202,9 @@ func (a *App) validateFormSettings(r *http.Request, v ui.FormValues, siteDomains
 	if s.DiscordURL != "" && a.Chat.Validate(chat.Discord, s.DiscordURL) != nil {
 		return s, tr(r, "form.err.discord_url")
 	}
+	if s.KChatURL != "" && a.Chat.Validate(chat.KChat, s.KChatURL) != nil {
+		return s, tr(r, "form.err.kchat_url")
+	}
 	if msg := telegramError(r, s.TelegramToken, s.TelegramChatID); msg != "" {
 		return s, msg
 	}
@@ -251,7 +256,7 @@ func openSecret(c *crypto.Cipher, stored *string, formID uuid.UUID) string {
 }
 
 // sealedWebhooks holds a form's encrypted secrets. nil means the channel is not configured.
-type sealedWebhooks struct{ Slack, Teams, Discord, TelegramToken *string }
+type sealedWebhooks struct{ Slack, Teams, Discord, KChat, TelegramToken *string }
 
 func (a *App) sealWebhooks(s formSettings) (out sealedWebhooks, err error) {
 	if out.Slack, err = sealSecret(a.WebhookCrypto, s.SlackURL); err != nil {
@@ -261,6 +266,9 @@ func (a *App) sealWebhooks(s formSettings) (out sealedWebhooks, err error) {
 		return sealedWebhooks{}, err
 	}
 	if out.Discord, err = sealSecret(a.WebhookCrypto, s.DiscordURL); err != nil {
+		return sealedWebhooks{}, err
+	}
+	if out.KChat, err = sealSecret(a.WebhookCrypto, s.KChatURL); err != nil {
 		return sealedWebhooks{}, err
 	}
 	if out.TelegramToken, err = sealSecret(a.BotTokenCrypto, s.TelegramToken); err != nil {
@@ -330,8 +338,8 @@ func (a *App) createForm(r *http.Request, actor, siteID uuid.UUID, s formSetting
 		NotifyEmail: s.NotifyEmail, Recipients: s.Recipients, EmailIncludeContent: s.IncludeContent,
 		StoreSubmissions: s.Store, RetentionDays: s.RetentionDays, RedirectUrl: s.RedirectURL,
 		SlackWebhookUrl: hooks.Slack, TeamsWebhookUrl: hooks.Teams, DiscordWebhookUrl: hooks.Discord,
-		ChatIncludeContent: s.ChatIncludeContent,
-		TelegramBotToken:   hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
+		KchatWebhookUrl: hooks.KChat, ChatIncludeContent: s.ChatIncludeContent,
+		TelegramBotToken: hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
 		AcceptAttachments: s.Attachments, Captcha: s.Captcha, RefuseLinks: s.RefuseLinks, NotificationLang: s.NotificationLang,
 	})
 	if err != nil {
@@ -369,6 +377,7 @@ func (a *App) FormSettings(w http.ResponseWriter, r *http.Request) {
 		SlackWebhookURL:    openSecret(a.WebhookCrypto, form.SlackWebhookUrl, form.ID),
 		TeamsWebhookURL:    openSecret(a.WebhookCrypto, form.TeamsWebhookUrl, form.ID),
 		DiscordWebhookURL:  openSecret(a.WebhookCrypto, form.DiscordWebhookUrl, form.ID),
+		KChatWebhookURL:    openSecret(a.WebhookCrypto, form.KchatWebhookUrl, form.ID),
 		TelegramBotToken:   openSecret(a.BotTokenCrypto, form.TelegramBotToken, form.ID),
 		TelegramChatID:     deref(form.TelegramChatID),
 		ChatIncludeContent: form.ChatIncludeContent,
@@ -416,8 +425,8 @@ func (a *App) UpdateForm(w http.ResponseWriter, r *http.Request) {
 		NotifyEmail: s.NotifyEmail, Recipients: s.Recipients, EmailIncludeContent: s.IncludeContent,
 		StoreSubmissions: s.Store, RetentionDays: s.RetentionDays, RedirectUrl: s.RedirectURL,
 		SlackWebhookUrl: hooks.Slack, TeamsWebhookUrl: hooks.Teams, DiscordWebhookUrl: hooks.Discord,
-		ChatIncludeContent: s.ChatIncludeContent,
-		TelegramBotToken:   hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
+		KchatWebhookUrl: hooks.KChat, ChatIncludeContent: s.ChatIncludeContent,
+		TelegramBotToken: hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
 		AcceptAttachments: s.Attachments, Captcha: s.Captcha, RefuseLinks: s.RefuseLinks, NotificationLang: s.NotificationLang,
 	})
 	if err != nil || n == 0 {
@@ -455,6 +464,7 @@ func (a *App) channelChanges(old database.GetFormScopedRow, s formSettings) map[
 		"slack":    channelChange(openSecret(a.WebhookCrypto, old.SlackWebhookUrl, old.ID), s.SlackURL),
 		"teams":    channelChange(openSecret(a.WebhookCrypto, old.TeamsWebhookUrl, old.ID), s.TeamsURL),
 		"discord":  channelChange(openSecret(a.WebhookCrypto, old.DiscordWebhookUrl, old.ID), s.DiscordURL),
+		"kchat":    channelChange(openSecret(a.WebhookCrypto, old.KchatWebhookUrl, old.ID), s.KChatURL),
 		"telegram": telegram,
 	} {
 		if change != "" {
@@ -515,7 +525,7 @@ func channelChange(before, after string) string {
 }
 
 var chatLabels = map[chat.Channel]string{
-	chat.Slack: "Slack", chat.Teams: "Teams", chat.Discord: "Discord", chat.Telegram: "Telegram",
+	chat.Slack: "Slack", chat.Teams: "Teams", chat.Discord: "Discord", chat.KChat: "kChat", chat.Telegram: "Telegram",
 }
 
 // TestWebhook sends a test message to the submitted channel, without saving anything.
@@ -538,6 +548,8 @@ func (a *App) TestWebhook(w http.ResponseWriter, r *http.Request) {
 		target = v.TeamsWebhookURL
 	case chat.Discord:
 		target = v.DiscordWebhookURL
+	case chat.KChat:
+		target = v.KChatWebhookURL
 	case chat.Telegram:
 		keyPrefix = "form.chat.telegram_test"
 	default:
