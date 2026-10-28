@@ -31,6 +31,8 @@ func TestValidate(t *testing.T) {
 		{Discord, "https://discordapp.com/api/webhooks/123456/TOKEN", nil},
 		{Discord, "https://discord.com/api/v10/webhooks/123456/TO-K_EN", nil},
 		{Discord, "https://chat.interne.exemple/hooks/abc", nil}, // hôte de l'exploitant : chemin libre
+		{KChat, "https://equipe.kchat.infomaniak.com/hooks/0192c4e8-5b1a-7d3e-9f40-1a2b3c4d5e6f", nil},
+		{KChat, "https://EQUIPE.kchat.infomaniak.com:443/hooks/x8kq3f9nqtgzfr7oj6m1yb4wch", nil},
 
 		{Slack, "http://hooks.slack.com/services/T/B/X", ErrInvalidURL},
 		{Slack, "", ErrInvalidURL},
@@ -55,6 +57,12 @@ func TestValidate(t *testing.T) {
 		{Discord, "https://discord.com.evil.tld/api/webhooks/1/T", ErrHostNotAllowed},
 		{Discord, "https://hooks.slack.com/services/T/B/X", ErrHostNotAllowed},
 		{Slack, "https://discord.com/api/webhooks/1/T", ErrHostNotAllowed},
+		{KChat, "https://kchat.infomaniak.com/hooks/abc", ErrHostNotAllowed}, // the suffix requires a subdomain
+		{KChat, "https://equipe.kchat.infomaniak.com.evil.tld/hooks/abc", ErrHostNotAllowed},
+		{KChat, "https://equipe.infomaniak.com/hooks/abc", ErrHostNotAllowed},
+		{KChat, "https://equipe.kchat.infomaniak.com:8443/hooks/abc", ErrHostNotAllowed},
+		{KChat, "https://hooks.slack.com/services/T/B/X", ErrHostNotAllowed},
+		{Slack, "https://equipe.kchat.infomaniak.com/hooks/abc", ErrHostNotAllowed},
 
 		// discord.com serves the whole Discord API: only a webhook path gets through.
 		{Discord, "https://discord.com/", ErrInvalidURL},
@@ -70,6 +78,16 @@ func TestValidate(t *testing.T) {
 		{Discord, "https://d%C4%B0scord.com/api/webhooks/1/T", ErrInvalidURL},
 		{Slack, "https://hoo\u212As.slack.com/services/T/B/X", ErrInvalidURL},
 		{Slack, "https://chat.ınterne.exemple/hooks/abc", ErrInvalidURL},
+		{KChat, "https://x.kchat.İnfomaniak.com/hooks/abc", ErrInvalidURL},
+		{KChat, "https://x.\u212Achat.infomaniak.com/hooks/abc", ErrInvalidURL},
+
+		// A kChat team host serves the whole Mattermost API: only a webhook path gets through.
+		{KChat, "https://equipe.kchat.infomaniak.com/", ErrInvalidURL},
+		{KChat, "https://equipe.kchat.infomaniak.com/api/v4/posts", ErrInvalidURL},
+		{KChat, "https://equipe.kchat.infomaniak.com/hooks/", ErrInvalidURL},
+		{KChat, "https://equipe.kchat.infomaniak.com/hooks/abc/x", ErrInvalidURL},
+		{KChat, "https://equipe.kchat.infomaniak.com/hooks/abc%2F..%2Fapi", ErrInvalidURL},
+		{KChat, "https://equipe.kchat.infomaniak.com/hooks/../api/v4/posts", ErrInvalidURL},
 	}
 	for _, tc := range cases {
 		if err := n.Validate(tc.ch, tc.raw); !errors.Is(err, tc.want) {
@@ -92,7 +110,7 @@ func server(t *testing.T, h http.HandlerFunc) (*Notifier, string) {
 }
 
 func TestSendPostsJSON(t *testing.T) {
-	for _, ch := range []Channel{Slack, Teams, Discord} {
+	for _, ch := range []Channel{Slack, Teams, Discord, KChat} {
 		var got map[string]any
 		n, hook := server(t, func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
@@ -102,12 +120,12 @@ func TestSendPostsJSON(t *testing.T) {
 			if err := json.Unmarshal(body, &got); err != nil {
 				t.Errorf("%s: corps JSON invalide: %v", ch, err)
 			}
-			w.WriteHeader(map[Channel]int{Slack: http.StatusOK, Teams: http.StatusAccepted, Discord: http.StatusNoContent}[ch])
+			w.WriteHeader(map[Channel]int{Slack: http.StatusOK, Teams: http.StatusAccepted, Discord: http.StatusNoContent, KChat: http.StatusOK}[ch])
 		})
 		if err := n.Send(context.Background(), ch, hook, Message{Title: "Titre", Fields: []Field{{"nom", "Ada"}}}); err != nil {
 			t.Fatalf("%s: Send: %v", ch, err)
 		}
-		key := map[Channel]string{Slack: "blocks", Teams: "attachments", Discord: "allowed_mentions"}[ch]
+		key := map[Channel]string{Slack: "blocks", Teams: "attachments", Discord: "allowed_mentions", KChat: "text"}[ch]
 		if _, ok := got[key]; !ok {
 			t.Fatalf("%s: clé %q absente du message : %v", ch, key, got)
 		}
@@ -318,6 +336,72 @@ func TestDiscordPayload(t *testing.T) {
 	}
 }
 
+func TestKChatPayload(t *testing.T) {
+	p := kchatPayload(Message{
+		Title:   "Nouvelle soumission : Contact",
+		Context: "Atelier",
+		Fields: []Field{
+			{"message", "@channel @all (@here) voyez [votre facture](https://evil.tld) ![](https://pixel.tld/x.png)"},
+			{"slack", "<https://evil.tld|votre facture> <!channel>"},
+			{"référence", "[facture][1]\n\n[1]: https://evil.tld"},
+			{"email", "ada@exemple.fr"},
+			{"vide", ""},
+		},
+		LinkURL: "https://naria.test/submissions/1", LinkLabel: "Voir",
+	})
+	if !strings.HasPrefix(p.Text, "**Nouvelle soumission : Contact**\nAtelier\n\n") {
+		t.Errorf("en-tête = %q", p.Text)
+	}
+	for _, active := range []string{"@channel", "@all", "@here", "](https://evil.tld", "](https://pixel.tld", "<", "]:"} {
+		if strings.Contains(p.Text, active) {
+			t.Errorf("syntaxe %q d'un visiteur restée active : %q", active, p.Text)
+		}
+	}
+	if !strings.Contains(p.Text, "&lt;https://evil.tld|votre facture> &lt;!channel>") {
+		t.Errorf("syntaxe Slack non neutralisée : %q", p.Text)
+	}
+	if !strings.Contains(p.Text, "ada@exemple.fr") {
+		t.Errorf("adresse email altérée : %q", p.Text)
+	}
+	if !strings.Contains(p.Text, "**vide**\n-") {
+		t.Errorf("valeur vide : %q", p.Text)
+	}
+	if !strings.HasSuffix(p.Text, "\n\n[Voir](https://naria.test/submissions/1)") || strings.Count(p.Text, "](") != 1 {
+		t.Errorf("lien = %q", p.Text)
+	}
+
+	p = kchatPayload(Message{Title: "Contact @channel", Context: "[site](https://evil.tld) <!here>"})
+	if p.Text != "**Contact @\u200bchannel**\n[site]\u200b(https://evil.tld) &lt;!here>" {
+		t.Errorf("titre et contexte = %q", p.Text)
+	}
+	if got := kchatPayload(Message{Title: "x"}).Text; got != "**x**" {
+		t.Errorf("titre seul = %q", got)
+	}
+
+	// Maximum content made of characters that grow when escaped: the text stays under the limit,
+	// without a split entity, and keeps both the truncation notice and the link.
+	big := make([]Field, maxFields)
+	for i := range big {
+		big[i] = Field{Name: strings.Repeat("<", 300), Value: strings.Repeat("<😀", maxValueRunes/2)}
+	}
+	p = kchatPayload(Message{
+		Title: strings.Repeat("<", 2000), Context: "Atelier", Fields: big, MoreNote: "Contenu tronqué.",
+		LinkURL: "https://naria.test/submissions/1", LinkLabel: "Voir",
+	})
+	if n := len16(p.Text); n > kchatTextMax || n < kchatTextMax-1000 {
+		t.Errorf("texte : %d unités UTF-16 (max %d, et le budget doit être utilisé)", n, kchatTextMax)
+	}
+	if strings.Count(p.Text, "&") != strings.Count(p.Text, "&lt;") {
+		t.Errorf("entité HTML coupée")
+	}
+	if !strings.HasPrefix(p.Text, "**&lt;") || !strings.Contains(p.Text, "…**\nAtelier\n\n") {
+		t.Errorf("titre coupé sans fermer le gras : %q", p.Text[:40])
+	}
+	if !strings.HasSuffix(p.Text, "Contenu tronqué.\n\n[Voir](https://naria.test/submissions/1)") {
+		t.Errorf("fin du texte = %q", p.Text[len(p.Text)-80:])
+	}
+}
+
 func TestClip16(t *testing.T) {
 	cases := []struct {
 		in    string
@@ -500,7 +584,7 @@ func TestTelegramPayload(t *testing.T) {
 	}
 }
 
-func TestTelegramClean(t *testing.T) {
+func TestBreakMentions(t *testing.T) {
 	const z = "\u200b"
 	cases := []struct{ in, want string }{
 		{"", ""},
@@ -521,8 +605,8 @@ func TestTelegramClean(t *testing.T) {
 		{"١@durov", "١@" + z + "durov"},
 	}
 	for _, tc := range cases {
-		if got := telegramClean(tc.in); got != tc.want {
-			t.Errorf("telegramClean(%q) = %q, want %q", tc.in, got, tc.want)
+		if got := breakMentions(tc.in); got != tc.want {
+			t.Errorf("breakMentions(%q) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

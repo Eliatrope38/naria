@@ -28,6 +28,7 @@ func (a *App) notifyChat(form database.GetFormByAccessKeyRow, data []submission.
 		chat.Slack:   form.SlackWebhookUrl,
 		chat.Teams:   form.TeamsWebhookUrl,
 		chat.Discord: form.DiscordWebhookUrl,
+		chat.KChat:   form.KchatWebhookUrl,
 	} {
 		if target := openSecret(a.WebhookCrypto, sealed, form.ID); target != "" {
 			sends[ch] = func(ctx context.Context, m chat.Message) error { return a.Chat.Send(ctx, ch, target, m) }

@@ -103,6 +103,14 @@ templ FormEditPage(vm FormEditVM) {
 							}
 						</div>
 						<p id="discord-webhook-help" class="muted" style="font-size:.82rem;margin:6px 0 16px">{ T(ctx, "form.chat.discord_help") }</p>
+						<label class="field-label" for="kchat-webhook">{ T(ctx, "form.chat.kchat_label") }</label>
+						<div class="input-action">
+							<input id="kchat-webhook" type="url" name="kchat_webhook_url" value={ vm.Values.KChatWebhookURL } placeholder="https://….kchat.infomaniak.com/hooks/…" autocomplete="off" spellcheck="false" class="input" aria-describedby="kchat-webhook-help"/>
+							if !vm.IsNew {
+								<button type="submit" name="channel" value="kchat" formaction={ templ.SafeURL("/forms/" + vm.FormID + "/webhooks/test") } formnovalidate class="btn btn--ghost btn--sm">{ T(ctx, "form.chat.test_btn") }</button>
+							}
+						</div>
+						<p id="kchat-webhook-help" class="muted" style="font-size:.82rem;margin:6px 0 16px">{ T(ctx, "form.chat.kchat_help") }</p>
 						<label class="field-label" for="telegram-token">{ T(ctx, "form.chat.telegram_token_label") }</label>
 						<input id="telegram-token" type="text" name="telegram_bot_token" value={ vm.Values.TelegramBotToken } placeholder="123456789:AA…" autocomplete="off" spellcheck="false" class="input" style="margin-bottom:12px" aria-describedby="telegram-help"/>
 						<label class="field-label" for="telegram-chat">{ T(ctx, "form.chat.telegram_chat_label") }</label>
@@ -233,7 +241,7 @@ templ FormPage(vm FormVM) {
 					} else {
 						<span class="badge badge--err">{ T(ctx, "form.status.inactive") }</span>
 					}
-					@formModeBadges(vm.Form.NotifyEmail, vm.Form.StoreSubmissions, alertChannels(vm.Form.SlackWebhookUrl, vm.Form.TeamsWebhookUrl, vm.Form.DiscordWebhookUrl, vm.Form.TelegramBotToken))
+					@formModeBadges(vm.Form.NotifyEmail, vm.Form.StoreSubmissions, alertChannels(vm.Form.SlackWebhookUrl, vm.Form.TeamsWebhookUrl, vm.Form.DiscordWebhookUrl, vm.Form.KchatWebhookUrl, vm.Form.TelegramBotToken))
 					if vm.Form.StoreSubmissions {
 						<span class="muted" style="font-size:.82rem">{ T(ctx, "form.retention.prefix") } { retentionLabel(ctx, vm.Form.RetentionDays) }</span>
 						if vm.StorageMax > 0 {
