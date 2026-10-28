@@ -9,6 +9,6 @@ ON CONFLICT (site_id, value) DO NOTHING;
 DELETE FROM site_blocked_senders WHERE id = $1 AND site_id = $2
 RETURNING value;
 
--- The keys come from submission.SenderKeys, already lower-cased like the stored values.
+-- The keys come from submission.BlockKeys, already lower-cased like the stored values.
 -- name: IsSenderBlocked :one
 SELECT EXISTS (SELECT 1 FROM site_blocked_senders WHERE site_id = $1 AND value = ANY(sqlc.arg('keys')::text[]));

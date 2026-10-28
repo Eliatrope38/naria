@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"gitlab.com/detag_inno/naria/internal/submission"
 )
 
 type Channel string
@@ -198,7 +200,8 @@ func fit(fields []Field) (out []Field, truncated bool) {
 		}
 		value := []rune(f.Value)
 		if room := min(maxValueRunes, maxTotalRunes-total); len(value) > room {
-			value = append(value[:room], '…')
+			s := string(value)
+			value = append([]rune(s[:submission.SafeCut(s, len(string(value[:room])))]), '…')
 			truncated = true
 		}
 		total += len(value)
@@ -285,7 +288,7 @@ func clipCost(s string, limit int, cost func(rune) int) (string, bool) {
 	n := 0
 	for i, r := range s {
 		if n += cost(r); n > limit-1 { // one unit kept for the ellipsis
-			return s[:i] + "…", true
+			return s[:submission.SafeCut(s, i)] + "…", true
 		}
 	}
 	return s, false

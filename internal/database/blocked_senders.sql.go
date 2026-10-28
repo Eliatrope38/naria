@@ -35,7 +35,7 @@ type IsSenderBlockedParams struct {
 	Keys   []string
 }
 
-// The keys come from submission.SenderKeys, already lower-cased like the stored values.
+// The keys come from submission.BlockKeys, already lower-cased like the stored values.
 func (q *Queries) IsSenderBlocked(ctx context.Context, arg IsSenderBlockedParams) (bool, error) {
 	row := q.db.QueryRow(ctx, isSenderBlocked, arg.SiteID, arg.Keys)
 	var exists bool

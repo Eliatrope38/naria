@@ -481,7 +481,7 @@ func TestAPICreationValeursParDefaut(t *testing.T) {
 		t.Fatalf("création : statut %d (%s)", code, raw)
 	}
 	if created["retention_days"] != float64(90) || created["store_submissions"] != true || created["notify_email"] != true ||
-		created["email_include_content"] != true || created["accept_attachments"] != false || created["captcha"] != false ||
+		created["email_include_content"] != true || created["accept_attachments"] != false || created["captcha"] != false || created["refuse_links"] != false ||
 		created["redirect_url"] != "" || strings.Contains(raw, "captcha.js") {
 		t.Errorf("valeurs par défaut inattendues : %s", raw)
 	}

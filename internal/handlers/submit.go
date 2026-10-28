@@ -183,6 +183,14 @@ func (a *App) Submit(w http.ResponseWriter, r *http.Request) {
 		a.submitOK(w, r, *form, meta)
 		return
 	}
+	// The visitor gets a success, so that a spammer does not learn to write the
+	// link another way. Nothing is stored, sent or scanned; the owner learns it
+	// from the form page and a daily alert.
+	if form.RefuseLinks && submission.HasLink(withServiceText(meta, data)) {
+		a.refused(&a.linkWatch, *form, "links")
+		a.submitOK(w, r, *form, meta)
+		return
+	}
 	// A blocked sender gets the success of any other visitor. Nothing is stored,
 	// sent or scanned for it.
 	blocked, err := a.senderBlocked(r.Context(), form.SiteID, meta, data)

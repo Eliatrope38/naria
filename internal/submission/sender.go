@@ -6,21 +6,23 @@ import (
 	"strings"
 )
 
-var errSenderInvalid = errors.New("expected a bare e-mail address or a domain name")
+var errSenderInvalid = errors.New("expected a bare e-mail address, a domain name or an extension")
 
 // maxSenderLen is the longest address the SMTP path allows (RFC 5321). A longer
 // value is not an address, and its labels would multiply the keys below.
 const maxSenderLen = 254
 
-// maxSenderKeys bounds the keys of one submission. A visitor controls every field,
-// so the cost of matching must not depend on what they send.
-const maxSenderKeys = 64
+// maxBlockKeys bounds the keys of one submission. A visitor controls every field,
+// so the cost of matching must not depend on what they send. Past the bound, the
+// links that follow are not compared: with maxSuffixLabels, a message needs some
+// forty distinct hosts before a blocked one to slip through.
+const maxBlockKeys = 256
 
-// NormalizeSender turns an address or a domain typed by the site owner into the
-// value stored in the blocklist. An address must have no display name, and a
-// domain is kept without its subdomain wildcard: blocking a domain already covers
-// its subdomains (see SenderKeys). A single label such as "localhost" is refused,
-// since no submission would ever match it.
+// NormalizeSender turns an address, a domain or an extension typed by the site
+// owner into the value stored in the blocklist. An address must have no display
+// name. A domain is kept without its subdomain wildcard: blocking a domain
+// already covers its subdomains (see BlockKeys). An extension, typed "online",
+// ".online" or "*.online", is stored with its leading dot.
 func NormalizeSender(input string) (string, error) {
 	v := strings.ToLower(strings.TrimSpace(input))
 	if strings.Contains(v, "@") {
@@ -30,28 +32,39 @@ func NormalizeSender(input string) (string, error) {
 		}
 		return v, nil
 	}
+	// Kept apart from normalizeDomain, which also reads a site's allowed origins:
+	// an origin must never be a whole extension.
+	if tld := strings.TrimPrefix(strings.TrimPrefix(v, "*"), "."); tld != "" && asciiLabel(tld) && isTLD(tld) {
+		return "." + tld, nil
+	}
 	d, ok := normalizeDomain(v)
-	if !ok || strings.HasPrefix(d, "*.") || !strings.Contains(d, ".") {
+	d = strings.TrimPrefix(d, "*.")
+	if !ok || !strings.Contains(d, ".") {
 		return "", errSenderInvalid
 	}
 	return d, nil
 }
 
-// SenderKeys returns the blocklist values a submission matches: each e-mail address
-// found in a field, then its domain and the parent domains down to the second
-// level. A blocked "example.fr" thus also covers "mail.example.fr". Fields are
-// matched on their whole value, so a sender named in a free-text message is not
-// taken for one.
-func SenderKeys(data []Field) []string {
+// BlockKeys returns the blocklist values a submission matches. First each e-mail
+// address found in a field, with its domain, the parent domains and the extension:
+// a blocked "example.fr" thus also covers "mail.example.fr". Fields are matched on
+// their whole value, so an address quoted in a message is not taken for its sender.
+// Then the same keys for the host of each link found in a name or a value,
+// bare domain names included.
+func BlockKeys(fields []Field) []string {
 	var keys []string
 	seen := map[string]bool{}
-	add := func(k string) {
+	add := func(k string) bool {
+		if len(keys) >= maxBlockKeys {
+			return false
+		}
 		if !seen[k] {
 			seen[k] = true
 			keys = append(keys, k)
 		}
+		return true
 	}
-	for _, f := range data {
+	for _, f := range fields {
 		v := strings.ToLower(strings.TrimSpace(f.Value))
 		if !strings.Contains(v, "@") || len(v) > maxSenderLen {
 			continue
@@ -62,12 +75,16 @@ func SenderKeys(data []Field) []string {
 		}
 		add(v)
 		_, domain, _ := strings.Cut(v, "@")
-		for d := domain; strings.Contains(d, "."); {
-			add(d)
-			_, d, _ = strings.Cut(d, ".")
-		}
-		if len(keys) >= maxSenderKeys {
-			return keys[:maxSenderKeys]
+		hostKeys(normalizeHost(domain), add)
+	}
+	for _, f := range fields {
+		for _, text := range [2]string{f.Name, f.Value} {
+			for _, l := range scanLinks(text) {
+				if len(keys) >= maxBlockKeys {
+					return keys
+				}
+				hostKeys(l.host, add)
+			}
 		}
 	}
 	return keys

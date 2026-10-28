@@ -27,9 +27,9 @@ func (q *Queries) CountFormsBySite(ctx context.Context, siteID uuid.UUID) (int64
 const createForm = `-- name: CreateForm :one
 INSERT INTO forms (site_id, name, access_key, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url,
                    slack_webhook_url, teams_webhook_url, discord_webhook_url, chat_include_content,
-                   telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-RETURNING id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang
+                   telegram_bot_token, telegram_chat_id, accept_attachments, captcha, refuse_links, notification_lang)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+RETURNING id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang, refuse_links
 `
 
 type CreateFormParams struct {
@@ -50,6 +50,7 @@ type CreateFormParams struct {
 	TelegramChatID      *string
 	AcceptAttachments   bool
 	Captcha             bool
+	RefuseLinks         bool
 	NotificationLang    string
 }
 
@@ -72,6 +73,7 @@ func (q *Queries) CreateForm(ctx context.Context, arg CreateFormParams) (Form, e
 		arg.TelegramChatID,
 		arg.AcceptAttachments,
 		arg.Captcha,
+		arg.RefuseLinks,
 		arg.NotificationLang,
 	)
 	var i Form
@@ -98,6 +100,7 @@ func (q *Queries) CreateForm(ctx context.Context, arg CreateFormParams) (Form, e
 		&i.AcceptAttachments,
 		&i.Captcha,
 		&i.NotificationLang,
+		&i.RefuseLinks,
 	)
 	return i, err
 }
@@ -125,7 +128,7 @@ func (q *Queries) DeleteFormScoped(ctx context.Context, arg DeleteFormScopedPara
 }
 
 const getFormByAccessKey = `-- name: GetFormByAccessKey :one
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, s.name AS site_name, s.domains AS site_domains
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, s.name AS site_name, s.domains AS site_domains
 FROM forms f
 JOIN sites s ON s.id = f.site_id
 WHERE f.access_key = $1
@@ -154,6 +157,7 @@ type GetFormByAccessKeyRow struct {
 	AcceptAttachments   bool
 	Captcha             bool
 	NotificationLang    string
+	RefuseLinks         bool
 	SiteName            string
 	SiteDomains         []string
 }
@@ -186,6 +190,7 @@ func (q *Queries) GetFormByAccessKey(ctx context.Context, accessKey string) (Get
 		&i.AcceptAttachments,
 		&i.Captcha,
 		&i.NotificationLang,
+		&i.RefuseLinks,
 		&i.SiteName,
 		&i.SiteDomains,
 	)
@@ -193,7 +198,7 @@ func (q *Queries) GetFormByAccessKey(ctx context.Context, accessKey string) (Get
 }
 
 const getFormScoped = `-- name: GetFormScoped :one
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, s.name AS site_name, s.domains AS site_domains,
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, s.name AS site_name, s.domains AS site_domains,
        coalesce(s.owner_id = $1 OR o.org_id = $2::uuid, false)::bool AS can_write
 FROM forms f
 JOIN sites s ON s.id = f.site_id
@@ -233,6 +238,7 @@ type GetFormScopedRow struct {
 	AcceptAttachments   bool
 	Captcha             bool
 	NotificationLang    string
+	RefuseLinks         bool
 	SiteName            string
 	SiteDomains         []string
 	CanWrite            bool
@@ -265,6 +271,7 @@ func (q *Queries) GetFormScoped(ctx context.Context, arg GetFormScopedParams) (G
 		&i.AcceptAttachments,
 		&i.Captcha,
 		&i.NotificationLang,
+		&i.RefuseLinks,
 		&i.SiteName,
 		&i.SiteDomains,
 		&i.CanWrite,
@@ -273,7 +280,7 @@ func (q *Queries) GetFormScoped(ctx context.Context, arg GetFormScopedParams) (G
 }
 
 const listFormsBySite = `-- name: ListFormsBySite :many
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang,
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links,
        (SELECT count(*) FROM submissions sub WHERE sub.form_id = f.id) AS submission_count,
        (SELECT count(*) FROM submissions sub WHERE sub.form_id = f.id AND sub.read_at IS NULL) AS unread_count
 FROM forms f
@@ -304,6 +311,7 @@ type ListFormsBySiteRow struct {
 	AcceptAttachments   bool
 	Captcha             bool
 	NotificationLang    string
+	RefuseLinks         bool
 	SubmissionCount     int64
 	UnreadCount         int64
 }
@@ -340,6 +348,7 @@ func (q *Queries) ListFormsBySite(ctx context.Context, siteID uuid.UUID) ([]List
 			&i.AcceptAttachments,
 			&i.Captcha,
 			&i.NotificationLang,
+			&i.RefuseLinks,
 			&i.SubmissionCount,
 			&i.UnreadCount,
 		); err != nil {
@@ -354,7 +363,7 @@ func (q *Queries) ListFormsBySite(ctx context.Context, siteID uuid.UUID) ([]List
 }
 
 const listFormsOfSite = `-- name: ListFormsOfSite :many
-SELECT id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang FROM forms WHERE site_id = $1 ORDER BY name
+SELECT id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang, refuse_links FROM forms WHERE site_id = $1 ORDER BY name
 `
 
 // ListFormsOfSite et CountFormsBySite servent l'API. Pas de périmètre dans ces
@@ -391,6 +400,7 @@ func (q *Queries) ListFormsOfSite(ctx context.Context, siteID uuid.UUID) ([]Form
 			&i.AcceptAttachments,
 			&i.Captcha,
 			&i.NotificationLang,
+			&i.RefuseLinks,
 		); err != nil {
 			return nil, err
 		}
@@ -440,11 +450,11 @@ SET name = $1, active = $2, notify_email = $3,
     discord_webhook_url = $11, chat_include_content = $12,
     telegram_bot_token = $13, telegram_chat_id = $14,
     accept_attachments = $15, captcha = $16,
-    notification_lang = $17, updated_at = now()
-WHERE forms.id = $18
+    refuse_links = $17, notification_lang = $18, updated_at = now()
+WHERE forms.id = $19
   AND forms.site_id IN (SELECT s.id FROM sites s
-                  WHERE s.owner_id = $19
-                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $20::uuid))
+                  WHERE s.owner_id = $20
+                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $21::uuid))
 `
 
 type UpdateFormScopedParams struct {
@@ -464,6 +474,7 @@ type UpdateFormScopedParams struct {
 	TelegramChatID      *string
 	AcceptAttachments   bool
 	Captcha             bool
+	RefuseLinks         bool
 	NotificationLang    string
 	ID                  uuid.UUID
 	ViewerID            uuid.UUID
@@ -490,6 +501,7 @@ func (q *Queries) UpdateFormScoped(ctx context.Context, arg UpdateFormScopedPara
 		arg.TelegramChatID,
 		arg.AcceptAttachments,
 		arg.Captcha,
+		arg.RefuseLinks,
 		arg.NotificationLang,
 		arg.ID,
 		arg.ViewerID,

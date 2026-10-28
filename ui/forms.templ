@@ -156,6 +156,13 @@ templ FormEditPage(vm FormEditVM) {
 						<span class="muted choice__desc">{ T(ctx, "form.captcha_desc") }</span>
 					</span>
 				</label>
+				<label class="check-row" style="margin-bottom:18px">
+					<input type="checkbox" name="refuse_links" value="1" checked?={ vm.Values.RefuseLinks }/>
+					<span>
+						{ T(ctx, "form.refuse_links_label") }
+						<span class="muted choice__desc">{ T(ctx, "form.refuse_links_desc") }</span>
+					</span>
+				</label>
 				<label class="field-row">
 					<span class="field-label">{ T(ctx, "form.redirect_label") } <span class="muted">{ T(ctx, "common.optional") }</span></span>
 					<input type="url" name="redirect_url" value={ vm.Values.RedirectURL } placeholder="https://exemple.fr/merci" class="input" aria-describedby="redirect-help"/>
@@ -250,6 +257,9 @@ templ FormPage(vm FormVM) {
 		}
 		if vm.Form.Captcha && vm.CaptchaUnsolved > 0 {
 			<div role="alert" class="alert alert--warn">{ T(ctx, "form.captcha_unsolved", vm.CaptchaUnsolved) }</div>
+		}
+		if vm.Form.RefuseLinks && vm.LinksRefused > 0 {
+			<div role="status" class="alert alert--warn">{ T(ctx, "form.links_refused", vm.LinksRefused) }</div>
 		}
 		<details class="service-card integration" open?={ vm.Total == 0 }>
 			<summary>{ T(ctx, "form.integration.heading") }</summary>
