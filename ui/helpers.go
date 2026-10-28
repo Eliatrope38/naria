@@ -100,6 +100,7 @@ type FormValues struct {
 	SlackWebhookURL    string
 	TeamsWebhookURL    string
 	DiscordWebhookURL  string
+	KChatWebhookURL    string
 	TelegramBotToken   string
 	TelegramChatID     string
 	ChatIncludeContent bool
@@ -299,12 +300,12 @@ func unreadStyle(unread bool) string {
 }
 
 // Configured channels: a nil pointer means not configured.
-func alertChannels(slack, teams, discord, telegram *string) []string {
+func alertChannels(slack, teams, discord, kchat, telegram *string) []string {
 	var out []string
 	for _, c := range []struct {
 		name string
 		set  bool
-	}{{"Slack", slack != nil}, {"Teams", teams != nil}, {"Discord", discord != nil}, {"Telegram", telegram != nil}} {
+	}{{"Slack", slack != nil}, {"Teams", teams != nil}, {"Discord", discord != nil}, {"kChat", kchat != nil}, {"Telegram", telegram != nil}} {
 		if c.set {
 			out = append(out, c.name)
 		}

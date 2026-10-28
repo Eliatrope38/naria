@@ -1,4 +1,5 @@
-// Package chat pushes an alert to Slack, Teams and Discord (incoming webhooks) and Telegram (bot API).
+// Package chat pushes an alert to Slack, Teams, Discord and kChat (incoming webhooks) and Telegram
+// (bot API).
 //
 // A webhook URL comes from the interface and the server is the one calling it: without a guard it
 // could probe internal addresses. Only known hosts are called, over HTTPS, without redirects.
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"gitlab.com/detag_inno/naria/internal/submission"
 )
@@ -28,6 +30,8 @@ const (
 	Slack   Channel = "slack"
 	Teams   Channel = "teams"
 	Discord Channel = "discord"
+	// KChat is Infomaniak's chat, built on Mattermost.
+	KChat Channel = "kchat"
 	// Telegram has no incoming webhook: see SendTelegram.
 	Telegram Channel = "telegram"
 )
@@ -38,12 +42,15 @@ var builtinHosts = map[Channel][]string{
 	Slack:   {"hooks.slack.com"},
 	Teams:   {".api.powerplatform.com"},
 	Discord: {"discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com"},
+	KChat:   {".kchat.infomaniak.com"},
 }
 
 // builtinPaths is the path shape required on a host that also serves more than webhooks. discord.com
-// hosts the whole API: without this rule the instance could post to any address there.
+// and each kChat team host serve the whole API: without this rule the instance could post to any
+// address there.
 var builtinPaths = map[Channel]*regexp.Regexp{
 	Discord: regexp.MustCompile(`^/api(/v\d+)?/webhooks/\d+/[A-Za-z0-9_-]+$`),
+	KChat:   regexp.MustCompile(`^/hooks/[A-Za-z0-9-]+$`),
 }
 
 var (
@@ -104,6 +111,12 @@ func (n *Notifier) parse(ch Channel, raw string) (*url.URL, error) {
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Hostname() == "" || len(raw) > 2000 {
 		return nil, ErrInvalidURL
 	}
+	// strings.ToLower folds some non-ASCII letters to ASCII ("İ" to "i", the Kelvin sign to "k"),
+	// while the request goes out to the IDNA form of the original host: another domain. Every
+	// official host is ASCII, and an operator writes theirs in punycode.
+	if strings.ContainsFunc(u.Hostname(), func(r rune) bool { return r >= utf8.RuneSelf }) {
+		return nil, ErrInvalidURL
+	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if n != nil && matchHost(n.extraHosts, host) {
 		return u, nil
@@ -151,6 +164,8 @@ func (n *Notifier) Send(ctx context.Context, ch Channel, rawURL string, m Messag
 		payload = teamsPayload(m)
 	case Discord:
 		payload = discordPayload(m)
+	case KChat:
+		payload = kchatPayload(m)
 	default:
 		return fmt.Errorf("canal inconnu %q", ch)
 	}
@@ -221,8 +236,11 @@ func orDash(s string) string {
 // The name comes from the visitor like the value, but must not crowd it out.
 const fieldNameMax = 256
 
-// markup describes a service's formatting: Markdown for Discord, HTML for Telegram. Lengths are
-// counted in UTF-16 (an emoji counts as two), the strictest count.
+// headMax bounds the title, the context and the link label, so they leave room for the content.
+const headMax = 500
+
+// markup describes a service's formatting: Markdown for Discord and kChat, HTML for Telegram.
+// Lengths are counted in UTF-16 (an emoji counts as two), the strictest count.
 type markup struct {
 	clean  func(string) string // neutralizes free text before cutting
 	cost   func(rune) int      // UTF-16 units of a character once escaped
@@ -486,10 +504,7 @@ func discordPayload(m Message) discordMessage {
 }
 
 // Telegram counts the text without its tags: counting them too leaves a margin.
-const (
-	telegramTextMax = 4096
-	telegramHeadMax = 500
-)
+const telegramTextMax = 4096
 
 var (
 	ErrTelegramToken = errors.New("jeton de bot Telegram invalide")
@@ -512,10 +527,11 @@ func ValidateTelegram(token, chatID string) error {
 	return nil
 }
 
-// telegramClean neutralizes @mentions, which would notify the named person. An "@" preceded by an
-// ASCII letter or digit belongs to an email address and stays intact so it can be copied.
-// Addresses, commands and hashtags stay clickable: their label is their destination.
-func telegramClean(s string) string {
+// breakMentions neutralizes @mentions, which would notify the named person or, on kChat, the whole
+// channel (@channel, @all, @here). An "@" preceded by an ASCII letter or digit belongs to an email
+// address and stays intact so it can be copied. Addresses, commands and hashtags stay clickable:
+// their label is their destination.
+func breakMentions(s string) string {
 	if !strings.Contains(s, "@") {
 		return s
 	}
@@ -538,7 +554,7 @@ func isASCIIAlnum(r rune) bool {
 // telegramMarkup: Telegram receives HTML where only the application's tags exist. Escaped text can
 // neither be formatted nor create a link.
 var telegramMarkup = markup{
-	clean: telegramClean,
+	clean: breakMentions,
 	cost: func(r rune) int {
 		switch r {
 		case '&':
@@ -550,6 +566,53 @@ var telegramMarkup = markup{
 	},
 	escape: strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace,
 	bold:   func(s string) string { return "<b>" + s + "</b>" },
+}
+
+// Maximum length of a kChat (Mattermost) post, in characters: UTF-16 units never count fewer.
+const kchatTextMax = 16383
+
+// kchatMarkup: after the mentions, a zero-width space breaks "](" (misleading link or remote image)
+// and "]:" (reference definition). Formatting is still interpreted. Mattermost turns the Slack
+// syntax "<url|label>" into a link and "<!channel>" into a mention before rendering, which a
+// zero-width space would not stop: "<" is sent as an entity, which Markdown shows as the character.
+var kchatMarkup = markup{
+	clean: func(s string) string {
+		return strings.NewReplacer("](", "]\u200b(", "]:", "]\u200b:").Replace(breakMentions(s))
+	},
+	cost: func(r rune) int {
+		if r == '<' {
+			return len("&lt;")
+		}
+		return utf16.RuneLen(r)
+	},
+	escape: strings.NewReplacer("<", "&lt;").Replace,
+	bold:   func(s string) string { return "**" + s + "**" },
+}
+
+type kchatMessage struct {
+	Text string `json:"text"`
+}
+
+// kchatPayload composes the message of a kChat incoming webhook, as Markdown text.
+func kchatPayload(m Message) kchatMessage {
+	k := kchatMarkup
+	title, _ := k.text(orDash(m.Title), headMax)
+	head := k.bold(title)
+	if m.Context != "" {
+		context, _ := k.text(m.Context, headMax)
+		head += "\n" + context
+	}
+	link := ""
+	if m.LinkURL != "" {
+		label, _ := k.text(orDash(m.LinkLabel), headMax)
+		link = "[" + label + "](" + m.LinkURL + ")"
+	}
+	const sep = "\n\n"
+	text := head
+	if body := k.body(m, link, kchatTextMax-len16(head+sep)); body != "" {
+		text += sep + body
+	}
+	return kchatMessage{Text: text}
 }
 
 type telegramPreview struct {
@@ -567,15 +630,15 @@ type telegramMessage struct {
 // would fetch every address the visitor wrote.
 func telegramPayload(chatID string, m Message) telegramMessage {
 	k := telegramMarkup
-	title, _ := k.text(orDash(m.Title), telegramHeadMax)
+	title, _ := k.text(orDash(m.Title), headMax)
 	head := k.bold(title)
 	if m.Context != "" {
-		context, _ := k.text(m.Context, telegramHeadMax)
+		context, _ := k.text(m.Context, headMax)
 		head += "\n" + context
 	}
 	link := ""
 	if m.LinkURL != "" {
-		label, _ := k.text(orDash(m.LinkLabel), telegramHeadMax)
+		label, _ := k.text(orDash(m.LinkLabel), headMax)
 		link = `<a href="` + html.EscapeString(m.LinkURL) + `">` + label + `</a>`
 	}
 	const sep = "\n\n"

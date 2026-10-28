@@ -191,7 +191,7 @@ templ SitePage(vm SiteVM) {
 									<td><a href={ templ.SafeURL("/forms/" + f.ID.String()) } class="ink" style="font-weight:600">{ f.Name }</a></td>
 									<td>
 										<span style="display:inline-flex;gap:6px;flex-wrap:wrap">
-											@formModeBadges(f.NotifyEmail, f.StoreSubmissions, alertChannels(f.SlackWebhookUrl, f.TeamsWebhookUrl, f.DiscordWebhookUrl, f.TelegramBotToken))
+											@formModeBadges(f.NotifyEmail, f.StoreSubmissions, alertChannels(f.SlackWebhookUrl, f.TeamsWebhookUrl, f.DiscordWebhookUrl, f.KchatWebhookUrl, f.TelegramBotToken))
 										</span>
 									</td>
 									<td>

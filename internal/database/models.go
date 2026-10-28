@@ -65,6 +65,7 @@ type Form struct {
 	Captcha             bool
 	NotificationLang    string
 	RefuseLinks         bool
+	KchatWebhookUrl     *string
 }
 
 type Organisation struct {
