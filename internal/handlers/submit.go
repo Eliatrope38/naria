@@ -164,13 +164,17 @@ func (a *App) Submit(w http.ResponseWriter, r *http.Request) {
 		}
 		form = &f
 	}
+	// Taken out before the empty check, like "botcheck", so that the trap does not
+	// count as content.
+	data, trapped := submission.TakeHoneypot(data, deref(form.HoneypotField))
+	meta.Bot = meta.Bot || trapped
 	// Rather than accept the submission without its files, it is refused: whoever
 	// embeds the form sees the error on the first try.
 	if filesBeforeKey && form.AcceptAttachments {
 		a.submitFail(w, r, http.StatusBadRequest, "submit.err.key_after_files")
 		return
 	}
-	// This refusal comes before the honeypot: otherwise a bot filling "botcheck"
+	// This refusal comes before the honeypot: otherwise a bot filling the trap
 	// would get a success where a visitor gets an error.
 	if !hasContent(data) {
 		a.submitFail(w, r, http.StatusBadRequest, "submit.err.empty")
@@ -178,7 +182,7 @@ func (a *App) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 	// A bot gets a success so it does not learn to bypass the honeypot. The
 	// bot check was already passed at admission: a success without it
-	// would point the honeypot out to anyone comparing responses with and without "botcheck".
+	// would point the honeypot out to anyone comparing responses with and without the trap.
 	if meta.Bot {
 		a.submitOK(w, r, *form, meta)
 		return

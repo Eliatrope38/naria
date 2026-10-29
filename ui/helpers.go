@@ -96,6 +96,7 @@ type FormValues struct {
 	Captcha        bool
 	RefuseLinks    bool
 	RedirectURL    string
+	HoneypotField  string
 
 	SlackWebhookURL    string
 	TeamsWebhookURL    string
@@ -198,9 +199,20 @@ type FormVM struct {
 	LinksRefused int
 }
 
+// trapField names the honeypot field of the snippet: the form's own, or "botcheck"
+// for a form created before there was one.
+func trapField(honeypot *string) string {
+	if honeypot == nil {
+		return "botcheck"
+	}
+	return *honeypot
+}
+
 // HTMLSnippet renders the form to paste on the site. With the anti-bot check, it carries
-// the attribute the script recognizes, followed by the script tag.
-func HTMLSnippet(ctx context.Context, endpoint, accessKey string, attachments, captcha bool) string {
+// the attribute the script recognizes, followed by the script tag. The honeypot is moved
+// off screen rather than hidden with display:none, which bots look for, and nothing in
+// the markup names it as a trap: the page explains it next to the code.
+func HTMLSnippet(ctx context.Context, endpoint, accessKey string, honeypot *string, attachments, captcha bool) string {
 	enctype, fileInput, marker, script := "", "", "", ""
 	if attachments {
 		enctype = ` enctype="multipart/form-data"`
@@ -221,8 +233,9 @@ func HTMLSnippet(ctx context.Context, endpoint, accessKey string, attachments, c
   <input type="email" name="email" required>
   <textarea name="message" required></textarea>` + fileInput + `
 
-  <!-- ` + T(ctx, "form.integration.honeypot_comment") + ` -->
-  <input type="checkbox" name="botcheck" style="display:none" tabindex="-1" autocomplete="off">
+  <div style="position:absolute;left:-9999px" aria-hidden="true">
+    <input type="text" name="` + trapField(honeypot) + `" tabindex="-1" autocomplete="off">
+  </div>
 
   <button type="submit">` + T(ctx, "form.integration.submit_label") + `</button>
 </form>` + script
@@ -234,7 +247,7 @@ func instanceURL(endpoint string) string {
 }
 
 func (vm FormVM) htmlSnippet(ctx context.Context) string {
-	return HTMLSnippet(ctx, vm.Endpoint, vm.Form.AccessKey, vm.Form.AcceptAttachments, vm.Form.Captcha)
+	return HTMLSnippet(ctx, vm.Endpoint, vm.Form.AccessKey, vm.Form.HoneypotField, vm.Form.AcceptAttachments, vm.Form.Captcha)
 }
 
 // JavaScript variant: JSON response, no page reload.

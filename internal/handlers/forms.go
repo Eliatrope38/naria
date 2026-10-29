@@ -77,6 +77,8 @@ type formSettings struct {
 	Captcha        bool
 	RefuseLinks    bool
 	RedirectURL    *string
+	// HoneypotField is nil when only "botcheck" traps bots.
+	HoneypotField *string
 
 	NotificationLang string
 
@@ -108,6 +110,7 @@ func (a *App) readFormSettings(r *http.Request, siteDomains []string, lang strin
 		Captcha:        r.FormValue("captcha") != "",
 		RefuseLinks:    r.FormValue("refuse_links") != "",
 		RedirectURL:    strings.TrimSpace(r.FormValue("redirect_url")),
+		HoneypotField:  strings.TrimSpace(r.FormValue("honeypot_field")),
 
 		SlackWebhookURL:    strings.TrimSpace(r.FormValue("slack_webhook_url")),
 		TeamsWebhookURL:    strings.TrimSpace(r.FormValue("teams_webhook_url")),
@@ -178,6 +181,16 @@ func (a *App) validateFormSettings(r *http.Request, v ui.FormValues, siteDomains
 			return s, tr(r, "form.err.retention_invalid", maxRetentionDays)
 		}
 		s.RetentionDays = int32(n)
+	}
+
+	if v.HoneypotField != "" {
+		switch err := submission.HoneypotNameError(v.HoneypotField); {
+		case errors.Is(err, submission.ErrHoneypotReserved):
+			return s, tr(r, "form.err.honeypot_reserved", v.HoneypotField)
+		case err != nil:
+			return s, tr(r, "form.err.honeypot_invalid")
+		}
+		s.HoneypotField = &v.HoneypotField
 	}
 
 	if v.RedirectURL != "" {
@@ -286,7 +299,7 @@ func (a *App) NewForm(w http.ResponseWriter, r *http.Request) {
 	a.renderNewForm(w, r, site, ui.FormValues{
 		Active: true, NotifyEmail: a.Mailer != nil, Recipients: u.Email,
 		IncludeContent: true, Store: true, RetentionDays: strconv.Itoa(defaultRetentionDays),
-		NotificationLang: ui.Lang(r.Context()),
+		NotificationLang: ui.Lang(r.Context()), HoneypotField: submission.NewHoneypotName(),
 	}, "")
 }
 
@@ -341,6 +354,7 @@ func (a *App) createForm(r *http.Request, actor, siteID uuid.UUID, s formSetting
 		KchatWebhookUrl: hooks.KChat, ChatIncludeContent: s.ChatIncludeContent,
 		TelegramBotToken: hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
 		AcceptAttachments: s.Attachments, Captcha: s.Captcha, RefuseLinks: s.RefuseLinks, NotificationLang: s.NotificationLang,
+		HoneypotField: s.HoneypotField,
 	})
 	if err != nil {
 		return database.Form{}, err
@@ -374,6 +388,7 @@ func (a *App) FormSettings(w http.ResponseWriter, r *http.Request) {
 		Captcha:            form.Captcha,
 		RefuseLinks:        form.RefuseLinks,
 		RedirectURL:        deref(form.RedirectUrl),
+		HoneypotField:      deref(form.HoneypotField),
 		SlackWebhookURL:    openSecret(a.WebhookCrypto, form.SlackWebhookUrl, form.ID),
 		TeamsWebhookURL:    openSecret(a.WebhookCrypto, form.TeamsWebhookUrl, form.ID),
 		DiscordWebhookURL:  openSecret(a.WebhookCrypto, form.DiscordWebhookUrl, form.ID),
@@ -428,6 +443,7 @@ func (a *App) UpdateForm(w http.ResponseWriter, r *http.Request) {
 		KchatWebhookUrl: hooks.KChat, ChatIncludeContent: s.ChatIncludeContent,
 		TelegramBotToken: hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
 		AcceptAttachments: s.Attachments, Captcha: s.Captcha, RefuseLinks: s.RefuseLinks, NotificationLang: s.NotificationLang,
+		HoneypotField: s.HoneypotField,
 	})
 	if err != nil || n == 0 {
 		a.renderFormSettings(w, r, form, v, tr(r, "common.err.update"), "")
@@ -493,6 +509,7 @@ func (a *App) formAuditMeta(old database.GetFormScopedRow, s formSettings) map[s
 		{"captcha", old.Captcha != s.Captcha},
 		{"refuse_links", old.RefuseLinks != s.RefuseLinks},
 		{"redirect", deref(old.RedirectUrl) != deref(s.RedirectURL)},
+		{"honeypot_field", deref(old.HoneypotField) != deref(s.HoneypotField)},
 		{"chat_content", old.ChatIncludeContent != s.ChatIncludeContent},
 		{"notification_lang", old.NotificationLang != s.NotificationLang},
 	} {

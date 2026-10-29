@@ -394,7 +394,7 @@ func Split(fields []Field) (Meta, []Field) {
 		case fieldCaptcha:
 			m.Captcha = f.Value
 		case fieldBotcheck:
-			m.Bot = f.Value != "" && f.Value != "false" && f.Value != "0"
+			m.Bot = trapFilled(f.Value)
 		default:
 			if !captchaFields[f.Name] {
 				data = append(data, f)

@@ -66,6 +66,7 @@ type Form struct {
 	NotificationLang    string
 	RefuseLinks         bool
 	KchatWebhookUrl     *string
+	HoneypotField       *string
 }
 
 type Organisation struct {
