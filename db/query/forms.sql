@@ -20,7 +20,7 @@ WHERE f.id = sqlc.arg('id')
 -- GetFormByAccessKey sert le point d'entrée public : aucune notion d'utilisateur,
 -- la clé d'accès désigne le formulaire.
 -- name: GetFormByAccessKey :one
-SELECT f.*, s.name AS site_name, s.domains AS site_domains
+SELECT f.*, s.name AS site_name, s.domains AS site_domains, s.block_disposable AS site_block_disposable
 FROM forms f
 JOIN sites s ON s.id = f.site_id
 WHERE f.access_key = $1;

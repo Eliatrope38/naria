@@ -131,7 +131,7 @@ func (q *Queries) DeleteFormScoped(ctx context.Context, arg DeleteFormScopedPara
 }
 
 const getFormByAccessKey = `-- name: GetFormByAccessKey :one
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, s.name AS site_name, s.domains AS site_domains
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, s.name AS site_name, s.domains AS site_domains, s.block_disposable AS site_block_disposable
 FROM forms f
 JOIN sites s ON s.id = f.site_id
 WHERE f.access_key = $1
@@ -164,6 +164,7 @@ type GetFormByAccessKeyRow struct {
 	KchatWebhookUrl     *string
 	SiteName            string
 	SiteDomains         []string
+	SiteBlockDisposable bool
 }
 
 // GetFormByAccessKey sert le point d'entrée public : aucune notion d'utilisateur,
@@ -198,6 +199,7 @@ func (q *Queries) GetFormByAccessKey(ctx context.Context, accessKey string) (Get
 		&i.KchatWebhookUrl,
 		&i.SiteName,
 		&i.SiteDomains,
+		&i.SiteBlockDisposable,
 	)
 	return i, err
 }

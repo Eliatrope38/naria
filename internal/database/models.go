@@ -90,12 +90,13 @@ type Session struct {
 }
 
 type Site struct {
-	ID        uuid.UUID
-	OwnerID   uuid.UUID
-	Name      string
-	Domains   []string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	Name            string
+	Domains         []string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	BlockDisposable bool
 }
 
 type SiteBlockedSender struct {

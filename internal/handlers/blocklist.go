@@ -82,6 +82,41 @@ func (a *App) BlockSender(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/sites/"+site.ID.String(), http.StatusSeeOther)
 }
 
+// SetBlockDisposable turns on or off the drop of submissions sent from a
+// disposable e-mail domain, for a whole site.
+func (a *App) SetBlockDisposable(w http.ResponseWriter, r *http.Request) {
+	u := web.UserFrom(r.Context())
+	site, ok := a.writableSiteFor(w, r)
+	if !ok {
+		return
+	}
+	on := r.FormValue("block_disposable") != ""
+	sc := scopeOf(u)
+	n, err := a.Q.SetSiteBlockDisposableScoped(r.Context(), database.SetSiteBlockDisposableScopedParams{
+		ID: site.ID, BlockDisposable: on, ViewerID: sc.viewerID, AdminOrgID: sc.adminOrgID,
+	})
+	if err != nil || n == 0 {
+		log.Printf("ERROR blocage: adresses jetables site=%s: %v (lignes=%d)", site.ID, err, n)
+		http.Error(w, tr(r, "common.err.update"), http.StatusInternalServerError)
+		return
+	}
+	action, flash := auditSenderUnblocked, "site.blocked.flash.disposable_off"
+	if on {
+		action, flash = auditSenderBlocked, "site.blocked.flash.disposable_on"
+	}
+	if on != site.BlockDisposable {
+		a.audit(r.Context(), auditEntry{
+			ActorID:  refUUID(u.ID),
+			Action:   action,
+			Entity:   auditEntitySite,
+			EntityID: refUUID(site.ID),
+			Meta:     map[string]string{"kind": "disposable", "ip": web.ClientIP(r)},
+		})
+	}
+	web.Flash(a.Sessions, r, tr(r, flash))
+	http.Redirect(w, r, "/sites/"+site.ID.String(), http.StatusSeeOther)
+}
+
 func (a *App) UnblockSender(w http.ResponseWriter, r *http.Request) {
 	u := web.UserFrom(r.Context())
 	site, ok := a.writableSiteFor(w, r)

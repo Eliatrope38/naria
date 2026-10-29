@@ -57,6 +57,12 @@ WHERE sites.id = sqlc.arg('id')
   AND (sites.owner_id = sqlc.arg('viewer_id')
        OR sites.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = sqlc.narg('admin_org_id')::uuid));
 
+-- name: SetSiteBlockDisposableScoped :execrows
+UPDATE sites SET block_disposable = sqlc.arg('block_disposable'), updated_at = now()
+WHERE sites.id = sqlc.arg('id')
+  AND (sites.owner_id = sqlc.arg('viewer_id')
+       OR sites.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = sqlc.narg('admin_org_id')::uuid));
+
 -- Transfert à un compte actif de la même organisation que l'administrateur. La
 -- lecture accordée au nouveau propriétaire est retirée par la même transaction.
 -- name: TransferSiteScoped :execrows

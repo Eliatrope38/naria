@@ -40,7 +40,7 @@ func (q *Queries) CountSitesScoped(ctx context.Context, arg CountSitesScopedPara
 const createSite = `-- name: CreateSite :one
 INSERT INTO sites (owner_id, name, domains)
 VALUES ($1, $2, $3)
-RETURNING id, owner_id, name, domains, created_at, updated_at
+RETURNING id, owner_id, name, domains, created_at, updated_at, block_disposable
 `
 
 type CreateSiteParams struct {
@@ -59,6 +59,7 @@ func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, e
 		&i.Domains,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BlockDisposable,
 	)
 	return i, err
 }
@@ -119,7 +120,7 @@ func (q *Queries) GetSiteAlertEmails(ctx context.Context, id uuid.UUID) (GetSite
 }
 
 const getSiteScoped = `-- name: GetSiteScoped :one
-SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, u.name AS owner_name,
+SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, s.block_disposable, u.name AS owner_name,
        coalesce(s.owner_id = $1 OR u.org_id = $2::uuid, false)::bool AS can_write
 FROM sites s
 JOIN users u ON u.id = s.owner_id
@@ -136,14 +137,15 @@ type GetSiteScopedParams struct {
 }
 
 type GetSiteScopedRow struct {
-	ID        uuid.UUID
-	OwnerID   uuid.UUID
-	Name      string
-	Domains   []string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	OwnerName string
-	CanWrite  bool
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	Name            string
+	Domains         []string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	BlockDisposable bool
+	OwnerName       string
+	CanWrite        bool
 }
 
 // Cloisonnement : toute lecture ou écriture d'un site porte le périmètre du
@@ -161,6 +163,7 @@ func (q *Queries) GetSiteScoped(ctx context.Context, arg GetSiteScopedParams) (G
 		&i.Domains,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BlockDisposable,
 		&i.OwnerName,
 		&i.CanWrite,
 	)
@@ -287,12 +290,12 @@ func (q *Queries) ListSiteReadGrants(ctx context.Context, arg ListSiteReadGrants
 }
 
 const listSitesScoped = `-- name: ListSitesScoped :many
-SELECT p.id, p.owner_id, p.name, p.domains, p.created_at, p.updated_at, p.owner_name, p.can_write,
+SELECT p.id, p.owner_id, p.name, p.domains, p.created_at, p.updated_at, p.block_disposable, p.owner_name, p.can_write,
        (SELECT count(*) FROM forms f WHERE f.site_id = p.id) AS form_count,
        (SELECT count(*) FROM submissions sub JOIN forms f ON f.id = sub.form_id
          WHERE f.site_id = p.id AND sub.read_at IS NULL) AS unread_count
 FROM (
-    SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, u.name AS owner_name,
+    SELECT s.id, s.owner_id, s.name, s.domains, s.created_at, s.updated_at, s.block_disposable, u.name AS owner_name,
            coalesce(s.owner_id = $1 OR u.org_id = $2::uuid, false)::bool AS can_write
     FROM sites s
     JOIN users u ON u.id = s.owner_id
@@ -317,16 +320,17 @@ type ListSitesScopedParams struct {
 }
 
 type ListSitesScopedRow struct {
-	ID          uuid.UUID
-	OwnerID     uuid.UUID
-	Name        string
-	Domains     []string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	OwnerName   string
-	CanWrite    bool
-	FormCount   int64
-	UnreadCount int64
+	ID              uuid.UUID
+	OwnerID         uuid.UUID
+	Name            string
+	Domains         []string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	BlockDisposable bool
+	OwnerName       string
+	CanWrite        bool
+	FormCount       int64
+	UnreadCount     int64
 }
 
 // La pagination précède le calcul des compteurs : ils ne sont faits que pour les
@@ -353,6 +357,7 @@ func (q *Queries) ListSitesScoped(ctx context.Context, arg ListSitesScopedParams
 			&i.Domains,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BlockDisposable,
 			&i.OwnerName,
 			&i.CanWrite,
 			&i.FormCount,
@@ -384,6 +389,33 @@ type RevokeSiteReadParams struct {
 
 func (q *Queries) RevokeSiteRead(ctx context.Context, arg RevokeSiteReadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeSiteRead, arg.SiteID, arg.UserID, arg.AdminOrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setSiteBlockDisposableScoped = `-- name: SetSiteBlockDisposableScoped :execrows
+UPDATE sites SET block_disposable = $1, updated_at = now()
+WHERE sites.id = $2
+  AND (sites.owner_id = $3
+       OR sites.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $4::uuid))
+`
+
+type SetSiteBlockDisposableScopedParams struct {
+	BlockDisposable bool
+	ID              uuid.UUID
+	ViewerID        uuid.UUID
+	AdminOrgID      pgtype.UUID
+}
+
+func (q *Queries) SetSiteBlockDisposableScoped(ctx context.Context, arg SetSiteBlockDisposableScopedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setSiteBlockDisposableScoped,
+		arg.BlockDisposable,
+		arg.ID,
+		arg.ViewerID,
+		arg.AdminOrgID,
+	)
 	if err != nil {
 		return 0, err
 	}

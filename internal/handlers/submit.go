@@ -192,7 +192,11 @@ func (a *App) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A blocked sender gets the success of any other visitor. Nothing is stored,
-	// sent or scanned for it.
+	// sent or scanned for it. Disposable domains come first: they need no query.
+	if form.SiteBlockDisposable && submission.HasDisposableAddress(withServiceText(meta, data)) {
+		a.submitOK(w, r, *form, meta)
+		return
+	}
 	blocked, err := a.senderBlocked(r.Context(), form.SiteID, meta, data)
 	if err != nil {
 		log.Printf("ERROR soumission: lecture des expéditeurs bloqués formulaire=%s: %v", form.ID, err)

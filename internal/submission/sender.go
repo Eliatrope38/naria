@@ -65,12 +65,8 @@ func BlockKeys(fields []Field) []string {
 		return true
 	}
 	for _, f := range fields {
-		v := strings.ToLower(strings.TrimSpace(f.Value))
-		if !strings.Contains(v, "@") || len(v) > maxSenderLen {
-			continue
-		}
-		addr, err := mail.ParseAddress(v)
-		if err != nil || addr.Name != "" || addr.Address != v {
+		v, ok := fieldAddress(f.Value)
+		if !ok {
 			continue
 		}
 		add(v)
@@ -88,4 +84,21 @@ func BlockKeys(fields []Field) []string {
 		}
 	}
 	return keys
+}
+
+// fieldAddress returns a field's value, lower-cased, when the whole value is a bare
+// e-mail address. The length is measured before lower-casing, as ValidEmail does:
+// some letters grow in lower case, and an address accepted as the reply address
+// must not escape the check.
+func fieldAddress(value string) (string, bool) {
+	v := strings.TrimSpace(value)
+	if !strings.Contains(v, "@") || len(v) > maxSenderLen {
+		return "", false
+	}
+	v = strings.ToLower(v)
+	addr, err := mail.ParseAddress(v)
+	if err != nil || addr.Name != "" || addr.Address != v {
+		return "", false
+	}
+	return v, true
 }
