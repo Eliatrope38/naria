@@ -67,6 +67,11 @@ func TestBlockKeysBornees(t *testing.T) {
 	if keys := BlockKeys([]Field{{Name: "email", Value: long}}); len(keys) != 0 {
 		t.Fatalf("adresse de plus de %d octets : %d clés", maxSenderLen, len(keys))
 	}
+	// 250 bytes as sent, more than maxSenderLen once lower-cased: still an address.
+	grows := strings.Repeat("Ⱥ", 120) + "@spam.test"
+	if keys := BlockKeys([]Field{{Name: "email", Value: grows}}); !slices.Contains(keys, "spam.test") {
+		t.Fatalf("adresse qui s'allonge en minuscules : clés %q", keys)
+	}
 	var data []Field
 	for i := range 60 {
 		data = append(data, Field{Name: "f" + strconv.Itoa(i), Value: fmt.Sprintf("u@%sexemple%d.zz", strings.Repeat("l.", 60), i)})

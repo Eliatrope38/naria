@@ -350,6 +350,17 @@ templ SitePage(vm SiteVM) {
 				<button type="submit" class="btn btn--ghost">{ T(ctx, "site.blocked.add_btn") }</button>
 			</form>
 			<p id="site-blocked-help" class="muted" style="font-size:.82rem;margin:10px 0 0">{ T(ctx, "site.blocked.help") }</p>
+			<form method="post" action={ templ.SafeURL("/sites/" + vm.Site.ID.String() + "/blocked/disposable") } style="margin-top:22px">
+				<input type="hidden" name="csrf_token" value={ vm.CSRF }/>
+				<label class="check-row" style="margin-bottom:14px">
+					<input type="checkbox" name="block_disposable" value="1" checked?={ vm.Site.BlockDisposable }/>
+					<span>
+						{ T(ctx, "site.blocked.disposable_label") }
+						<span class="muted choice__desc">{ T(ctx, "site.blocked.disposable_desc") }</span>
+					</span>
+				</label>
+				<button type="submit" class="btn btn--ghost btn--sm">{ T(ctx, "common.save") }</button>
+			</form>
 		</div>
 		}
 		if vm.Site.CanWrite {
