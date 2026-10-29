@@ -115,6 +115,7 @@ type apiForm struct {
 	RetentionDays       int32  `json:"retention_days"`
 	AcceptAttachments   bool   `json:"accept_attachments"`
 	Captcha             bool   `json:"captcha"`
+	RefuseLinks         bool   `json:"refuse_links"`
 	NotificationLang    string `json:"notification_lang"`
 	RedirectURL         string `json:"redirect_url"`
 }
@@ -129,7 +130,7 @@ func (a *App) apiForm(f database.Form) apiForm {
 		AccessKey: f.AccessKey, SubmitURL: a.submitURL(),
 		NotifyEmail: f.NotifyEmail, EmailIncludeContent: f.EmailIncludeContent,
 		StoreSubmissions: f.StoreSubmissions, RetentionDays: f.RetentionDays,
-		AcceptAttachments: f.AcceptAttachments, Captcha: f.Captcha,
+		AcceptAttachments: f.AcceptAttachments, Captcha: f.Captcha, RefuseLinks: f.RefuseLinks,
 		NotificationLang: f.NotificationLang, RedirectURL: deref(f.RedirectUrl),
 	}
 }
@@ -165,6 +166,7 @@ type apiFormInput struct {
 	RetentionDays       int    `json:"retention_days"`
 	AcceptAttachments   bool   `json:"accept_attachments"`
 	Captcha             bool   `json:"captcha"`
+	RefuseLinks         bool   `json:"refuse_links"`
 	NotificationLang    string `json:"notification_lang"`
 	RedirectURL         string `json:"redirect_url"`
 }
@@ -220,6 +222,7 @@ func (a *App) APICreateForm(w http.ResponseWriter, r *http.Request) {
 		NotifyEmail: in.NotifyEmail, Recipients: tok.UserEmail,
 		IncludeContent: in.EmailIncludeContent, Store: in.StoreSubmissions,
 		RetentionDays: strconv.Itoa(in.RetentionDays), Attachments: in.AcceptAttachments, Captcha: in.Captcha,
+		RefuseLinks: in.RefuseLinks,
 		RedirectURL: strings.TrimSpace(in.RedirectURL), NotificationLang: in.NotificationLang,
 	}, tok.SiteDomains)
 	if errMsg != "" {

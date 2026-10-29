@@ -90,6 +90,7 @@ func (a *App) FormSubmissions(w http.ResponseWriter, r *http.Request) {
 		Rows: rows, Total: total, Pg: pg, HasAttachments: hasAttachments,
 		StorageUsed: used, StorageMax: a.Cfg.MaxFormStorageBytes, StorageNotice: notice,
 		CaptchaUnsolved: a.captchaUnsolvedCount(form.ID),
+		LinksRefused:    a.linkWatch.count(form.ID),
 		Endpoint:        a.submitURL(), MailEnabled: a.Mailer != nil, Files: files,
 		CSRF: nosurf.Token(r), Flash: web.PopFlash(a.Sessions, r),
 	}))

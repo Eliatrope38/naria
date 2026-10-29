@@ -366,6 +366,22 @@ func TestFit(t *testing.T) {
 	}
 }
 
+// A cut inside a dotted name would make it a link again after Defang: the cut
+// moves to the start of that name.
+func TestCutKeepsNamesWhole(t *testing.T) {
+	value := strings.Repeat("-", maxValueRunes-12) + " evil.onlinezz"
+	out, _ := fit([]Field{{"a", value}})
+	if got := out[0].Value; strings.Contains(got, "evil") || !strings.HasSuffix(got, " …") {
+		t.Errorf("fit coupe dans le nom : %q", got[len(got)-20:])
+	}
+	if got, _ := clip16("voir evil.onlinezz", 17); got != "voir …" {
+		t.Errorf("clip16 = %q", got)
+	}
+	if got, _ := clip16("abcd", 3); got != "ab…" {
+		t.Errorf("clip16 d'un mot sans point = %q", got)
+	}
+}
+
 const testTelegramToken = "123456789:AAExampleExampleExampleExampleExample"
 
 func TestValidateTelegram(t *testing.T) {

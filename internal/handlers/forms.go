@@ -75,6 +75,7 @@ type formSettings struct {
 	RetentionDays  int32
 	Attachments    bool
 	Captcha        bool
+	RefuseLinks    bool
 	RedirectURL    *string
 
 	NotificationLang string
@@ -104,6 +105,7 @@ func (a *App) readFormSettings(r *http.Request, siteDomains []string, lang strin
 		RetentionDays:  strings.TrimSpace(r.FormValue("retention_days")),
 		Attachments:    r.FormValue("accept_attachments") != "",
 		Captcha:        r.FormValue("captcha") != "",
+		RefuseLinks:    r.FormValue("refuse_links") != "",
 		RedirectURL:    strings.TrimSpace(r.FormValue("redirect_url")),
 
 		SlackWebhookURL:    strings.TrimSpace(r.FormValue("slack_webhook_url")),
@@ -126,7 +128,7 @@ func (a *App) readFormSettings(r *http.Request, siteDomains []string, lang strin
 func (a *App) validateFormSettings(r *http.Request, v ui.FormValues, siteDomains []string) (formSettings, string) {
 	s := formSettings{
 		Name: v.Name, Active: v.Active, NotifyEmail: v.NotifyEmail, Store: v.Store, IncludeContent: v.IncludeContent,
-		Attachments: v.Attachments, Captcha: v.Captcha,
+		Attachments: v.Attachments, Captcha: v.Captcha, RefuseLinks: v.RefuseLinks,
 		SlackURL: v.SlackWebhookURL, TeamsURL: v.TeamsWebhookURL, DiscordURL: v.DiscordWebhookURL,
 		ChatIncludeContent: v.ChatIncludeContent,
 		TelegramToken:      v.TelegramBotToken, TelegramChatID: v.TelegramChatID,
@@ -330,7 +332,7 @@ func (a *App) createForm(r *http.Request, actor, siteID uuid.UUID, s formSetting
 		SlackWebhookUrl: hooks.Slack, TeamsWebhookUrl: hooks.Teams, DiscordWebhookUrl: hooks.Discord,
 		ChatIncludeContent: s.ChatIncludeContent,
 		TelegramBotToken:   hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
-		AcceptAttachments: s.Attachments, Captcha: s.Captcha, NotificationLang: s.NotificationLang,
+		AcceptAttachments: s.Attachments, Captcha: s.Captcha, RefuseLinks: s.RefuseLinks, NotificationLang: s.NotificationLang,
 	})
 	if err != nil {
 		return database.Form{}, err
@@ -362,6 +364,7 @@ func (a *App) FormSettings(w http.ResponseWriter, r *http.Request) {
 		Store: form.StoreSubmissions, RetentionDays: strconv.Itoa(int(form.RetentionDays)),
 		Attachments:        form.AcceptAttachments,
 		Captcha:            form.Captcha,
+		RefuseLinks:        form.RefuseLinks,
 		RedirectURL:        deref(form.RedirectUrl),
 		SlackWebhookURL:    openSecret(a.WebhookCrypto, form.SlackWebhookUrl, form.ID),
 		TeamsWebhookURL:    openSecret(a.WebhookCrypto, form.TeamsWebhookUrl, form.ID),
@@ -415,7 +418,7 @@ func (a *App) UpdateForm(w http.ResponseWriter, r *http.Request) {
 		SlackWebhookUrl: hooks.Slack, TeamsWebhookUrl: hooks.Teams, DiscordWebhookUrl: hooks.Discord,
 		ChatIncludeContent: s.ChatIncludeContent,
 		TelegramBotToken:   hooks.TelegramToken, TelegramChatID: nilIfEmpty(s.TelegramChatID),
-		AcceptAttachments: s.Attachments, Captcha: s.Captcha, NotificationLang: s.NotificationLang,
+		AcceptAttachments: s.Attachments, Captcha: s.Captcha, RefuseLinks: s.RefuseLinks, NotificationLang: s.NotificationLang,
 	})
 	if err != nil || n == 0 {
 		a.renderFormSettings(w, r, form, v, tr(r, "common.err.update"), "")
@@ -478,6 +481,7 @@ func (a *App) formAuditMeta(old database.GetFormScopedRow, s formSettings) map[s
 		{"retention", old.RetentionDays != s.RetentionDays},
 		{"attachments", old.AcceptAttachments != s.Attachments},
 		{"captcha", old.Captcha != s.Captcha},
+		{"refuse_links", old.RefuseLinks != s.RefuseLinks},
 		{"redirect", deref(old.RedirectUrl) != deref(s.RedirectURL)},
 		{"chat_content", old.ChatIncludeContent != s.ChatIncludeContent},
 		{"notification_lang", old.NotificationLang != s.NotificationLang},

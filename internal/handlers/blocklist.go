@@ -20,23 +20,35 @@ import (
 
 const maxBlockedSenderLen = 255
 
-// senderBlocked reports whether the submission carries a sender blocked on the site.
-// The reply address counts too: it is where the owner answers, even when the form
-// has no field for it.
+// senderBlocked reports whether the submission carries a sender, or a link to a
+// domain, blocked on the site. The reply address counts too: it is where the owner
+// answers, even when the form has no field for it. The subject too, since it
+// becomes the subject of the email.
 func (a *App) senderBlocked(ctx context.Context, siteID uuid.UUID, meta submission.Meta, data []submission.Field) (bool, error) {
-	fields := append(slices.Clip(data), submission.Field{Name: "replyto", Value: meta.ReplyTo})
-	keys := submission.SenderKeys(fields)
+	keys := submission.BlockKeys(withServiceText(meta, data))
 	if len(keys) == 0 {
 		return false, nil
 	}
 	return a.Q.IsSenderBlocked(ctx, database.IsSenderBlockedParams{SiteID: siteID, Keys: keys})
 }
 
+// withServiceText adds to the data the service fields a visitor writes freely and
+// that reach the owner, for the blocklist and the link check. slices.Clip keeps
+// append from writing into the caller's spare capacity.
+func withServiceText(meta submission.Meta, data []submission.Field) []submission.Field {
+	return append(slices.Clip(data),
+		submission.Field{Name: "replyto", Value: meta.ReplyTo},
+		submission.Field{Name: "subject", Value: meta.Subject})
+}
+
 // senderKind names what a blocklist value is, for the audit log. The value
-// itself is an address the owner chose to block, and stays out of the log.
+// itself, an address, a domain or an extension the owner chose, stays out of the log.
 func senderKind(value string) string {
-	if strings.Contains(value, "@") {
+	switch {
+	case strings.Contains(value, "@"):
 		return "email"
+	case strings.HasPrefix(value, "."):
+		return "tld"
 	}
 	return "domain"
 }

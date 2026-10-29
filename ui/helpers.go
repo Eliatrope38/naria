@@ -94,6 +94,7 @@ type FormValues struct {
 	RetentionDays  string
 	Attachments    bool
 	Captcha        bool
+	RefuseLinks    bool
 	RedirectURL    string
 
 	SlackWebhookURL    string
@@ -192,6 +193,8 @@ type FormVM struct {
 	// CaptchaUnsolved: browser submissions refused for lack of an anti-bot check
 	// since the last verified submission.
 	CaptchaUnsolved int
+	// LinksRefused: submissions dropped for holding a link, since the instance started.
+	LinksRefused int
 }
 
 // HTMLSnippet renders the form to paste on the site. With the anti-bot check, it carries

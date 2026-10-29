@@ -76,7 +76,7 @@ func (a *App) chatSubmissionMessage(form database.GetFormByAccessKeyRow, data []
 	if form.ChatIncludeContent {
 		msg.Fields = make([]chat.Field, 0, len(data))
 		for _, f := range data {
-			msg.Fields = append(msg.Fields, chat.Field{Name: f.Name, Value: f.Value})
+			msg.Fields = append(msg.Fields, chat.Field{Name: submission.Defang(f.Name), Value: submission.Defang(f.Value)})
 		}
 		msg.MoreNote = loc.T("chat.submission.more")
 		return msg
