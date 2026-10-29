@@ -171,6 +171,11 @@ templ FormEditPage(vm FormEditVM) {
 						<span class="muted choice__desc">{ T(ctx, "form.refuse_links_desc") }</span>
 					</span>
 				</label>
+				<label class="field-row" style="max-width:260px">
+					<span class="field-label">{ T(ctx, "form.honeypot_label") } <span class="muted">{ T(ctx, "common.optional") }</span></span>
+					<input type="text" name="honeypot_field" value={ vm.Values.HoneypotField } maxlength="40" pattern="[A-Za-z][A-Za-z0-9_\-]*" autocomplete="off" spellcheck="false" class="input" aria-describedby="honeypot-help"/>
+				</label>
+				<p id="honeypot-help" class="muted" style="font-size:.82rem;margin:-6px 0 16px">{ T(ctx, "form.honeypot_help") }</p>
 				<label class="field-row">
 					<span class="field-label">{ T(ctx, "form.redirect_label") } <span class="muted">{ T(ctx, "common.optional") }</span></span>
 					<input type="url" name="redirect_url" value={ vm.Values.RedirectURL } placeholder="https://exemple.fr/merci" class="input" aria-describedby="redirect-help"/>
@@ -293,6 +298,7 @@ templ FormPage(vm FormVM) {
 			</div>
 			<pre class="code-block"><code>{ vm.jsSnippet() }</code></pre>
 			<p class="muted" style="font-size:.82rem;margin:14px 0 0;white-space:pre-line">{ T(ctx, "form.integration.notes") }</p>
+			<p class="muted" style="font-size:.82rem;margin:6px 0 0">{ T(ctx, "form.integration.honeypot", trapField(vm.Form.HoneypotField)) }</p>
 			<p class="muted" style="font-size:.82rem;margin:6px 0 0">
 				if vm.Form.AcceptAttachments {
 					{ T(ctx, "form.integration.files_on", vm.Files.MaxFiles, vm.Files.MaxMB) }

@@ -127,12 +127,13 @@ func TestAPICreationDeFormulaire(t *testing.T) {
 	}
 	key, _ := created["access_key"].(string)
 	html, _ := created["html"].(string)
+	trap, _ := created["honeypot_field"].(string)
 	if created["name"] != "Devis" || created["submit_url"] != "http://naria.test/submit" || created["active"] != true ||
 		created["retention_days"] != float64(30) || created["redirect_url"] != "https://exemple.fr/merci/" {
 		t.Errorf("formulaire créé inattendu : %s", raw)
 	}
 	if key == "" || !strings.Contains(html, `value="`+key+`"`) || !strings.Contains(html, "http://naria.test/submit") ||
-		!strings.Contains(html, "multipart/form-data") || !strings.Contains(html, "botcheck") {
+		!strings.Contains(html, "multipart/form-data") || !strings.Contains(html, `name="`+trap+`"`) {
 		t.Errorf("le code d'intégration doit porter l'adresse d'envoi, la clé, l'enctype et le champ piège : %s", html)
 	}
 

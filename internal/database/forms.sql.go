@@ -27,9 +27,10 @@ func (q *Queries) CountFormsBySite(ctx context.Context, siteID uuid.UUID) (int64
 const createForm = `-- name: CreateForm :one
 INSERT INTO forms (site_id, name, access_key, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url,
                    slack_webhook_url, teams_webhook_url, discord_webhook_url, kchat_webhook_url, chat_include_content,
-                   telegram_bot_token, telegram_chat_id, accept_attachments, captcha, refuse_links, notification_lang)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-RETURNING id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang, refuse_links, kchat_webhook_url
+                   telegram_bot_token, telegram_chat_id, accept_attachments, captcha, refuse_links, notification_lang,
+                   honeypot_field)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+RETURNING id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang, refuse_links, kchat_webhook_url, honeypot_field
 `
 
 type CreateFormParams struct {
@@ -53,6 +54,7 @@ type CreateFormParams struct {
 	Captcha             bool
 	RefuseLinks         bool
 	NotificationLang    string
+	HoneypotField       *string
 }
 
 func (q *Queries) CreateForm(ctx context.Context, arg CreateFormParams) (Form, error) {
@@ -77,6 +79,7 @@ func (q *Queries) CreateForm(ctx context.Context, arg CreateFormParams) (Form, e
 		arg.Captcha,
 		arg.RefuseLinks,
 		arg.NotificationLang,
+		arg.HoneypotField,
 	)
 	var i Form
 	err := row.Scan(
@@ -104,6 +107,7 @@ func (q *Queries) CreateForm(ctx context.Context, arg CreateFormParams) (Form, e
 		&i.NotificationLang,
 		&i.RefuseLinks,
 		&i.KchatWebhookUrl,
+		&i.HoneypotField,
 	)
 	return i, err
 }
@@ -131,7 +135,7 @@ func (q *Queries) DeleteFormScoped(ctx context.Context, arg DeleteFormScopedPara
 }
 
 const getFormByAccessKey = `-- name: GetFormByAccessKey :one
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, s.name AS site_name, s.domains AS site_domains, s.block_disposable AS site_block_disposable
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, f.honeypot_field, s.name AS site_name, s.domains AS site_domains, s.block_disposable AS site_block_disposable
 FROM forms f
 JOIN sites s ON s.id = f.site_id
 WHERE f.access_key = $1
@@ -162,6 +166,7 @@ type GetFormByAccessKeyRow struct {
 	NotificationLang    string
 	RefuseLinks         bool
 	KchatWebhookUrl     *string
+	HoneypotField       *string
 	SiteName            string
 	SiteDomains         []string
 	SiteBlockDisposable bool
@@ -197,6 +202,7 @@ func (q *Queries) GetFormByAccessKey(ctx context.Context, accessKey string) (Get
 		&i.NotificationLang,
 		&i.RefuseLinks,
 		&i.KchatWebhookUrl,
+		&i.HoneypotField,
 		&i.SiteName,
 		&i.SiteDomains,
 		&i.SiteBlockDisposable,
@@ -205,7 +211,7 @@ func (q *Queries) GetFormByAccessKey(ctx context.Context, accessKey string) (Get
 }
 
 const getFormScoped = `-- name: GetFormScoped :one
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, s.name AS site_name, s.domains AS site_domains,
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, f.honeypot_field, s.name AS site_name, s.domains AS site_domains,
        coalesce(s.owner_id = $1 OR o.org_id = $2::uuid, false)::bool AS can_write
 FROM forms f
 JOIN sites s ON s.id = f.site_id
@@ -247,6 +253,7 @@ type GetFormScopedRow struct {
 	NotificationLang    string
 	RefuseLinks         bool
 	KchatWebhookUrl     *string
+	HoneypotField       *string
 	SiteName            string
 	SiteDomains         []string
 	CanWrite            bool
@@ -281,6 +288,7 @@ func (q *Queries) GetFormScoped(ctx context.Context, arg GetFormScopedParams) (G
 		&i.NotificationLang,
 		&i.RefuseLinks,
 		&i.KchatWebhookUrl,
+		&i.HoneypotField,
 		&i.SiteName,
 		&i.SiteDomains,
 		&i.CanWrite,
@@ -289,7 +297,7 @@ func (q *Queries) GetFormScoped(ctx context.Context, arg GetFormScopedParams) (G
 }
 
 const listFormsBySite = `-- name: ListFormsBySite :many
-SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url,
+SELECT f.id, f.site_id, f.name, f.access_key, f.active, f.notify_email, f.recipients, f.email_include_content, f.store_submissions, f.retention_days, f.redirect_url, f.created_at, f.updated_at, f.slack_webhook_url, f.teams_webhook_url, f.chat_include_content, f.discord_webhook_url, f.telegram_bot_token, f.telegram_chat_id, f.accept_attachments, f.captcha, f.notification_lang, f.refuse_links, f.kchat_webhook_url, f.honeypot_field,
        (SELECT count(*) FROM submissions sub WHERE sub.form_id = f.id) AS submission_count,
        (SELECT count(*) FROM submissions sub WHERE sub.form_id = f.id AND sub.read_at IS NULL) AS unread_count
 FROM forms f
@@ -322,6 +330,7 @@ type ListFormsBySiteRow struct {
 	NotificationLang    string
 	RefuseLinks         bool
 	KchatWebhookUrl     *string
+	HoneypotField       *string
 	SubmissionCount     int64
 	UnreadCount         int64
 }
@@ -360,6 +369,7 @@ func (q *Queries) ListFormsBySite(ctx context.Context, siteID uuid.UUID) ([]List
 			&i.NotificationLang,
 			&i.RefuseLinks,
 			&i.KchatWebhookUrl,
+			&i.HoneypotField,
 			&i.SubmissionCount,
 			&i.UnreadCount,
 		); err != nil {
@@ -374,7 +384,7 @@ func (q *Queries) ListFormsBySite(ctx context.Context, siteID uuid.UUID) ([]List
 }
 
 const listFormsOfSite = `-- name: ListFormsOfSite :many
-SELECT id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang, refuse_links, kchat_webhook_url FROM forms WHERE site_id = $1 ORDER BY name
+SELECT id, site_id, name, access_key, active, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url, created_at, updated_at, slack_webhook_url, teams_webhook_url, chat_include_content, discord_webhook_url, telegram_bot_token, telegram_chat_id, accept_attachments, captcha, notification_lang, refuse_links, kchat_webhook_url, honeypot_field FROM forms WHERE site_id = $1 ORDER BY name
 `
 
 // ListFormsOfSite et CountFormsBySite servent l'API. Pas de périmètre dans ces
@@ -413,6 +423,7 @@ func (q *Queries) ListFormsOfSite(ctx context.Context, siteID uuid.UUID) ([]Form
 			&i.NotificationLang,
 			&i.RefuseLinks,
 			&i.KchatWebhookUrl,
+			&i.HoneypotField,
 		); err != nil {
 			return nil, err
 		}
@@ -463,11 +474,12 @@ SET name = $1, active = $2, notify_email = $3,
     chat_include_content = $13,
     telegram_bot_token = $14, telegram_chat_id = $15,
     accept_attachments = $16, captcha = $17,
-    refuse_links = $18, notification_lang = $19, updated_at = now()
-WHERE forms.id = $20
+    refuse_links = $18, notification_lang = $19,
+    honeypot_field = $20, updated_at = now()
+WHERE forms.id = $21
   AND forms.site_id IN (SELECT s.id FROM sites s
-                  WHERE s.owner_id = $21
-                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $22::uuid))
+                  WHERE s.owner_id = $22
+                     OR s.owner_id IN (SELECT u.id FROM users u WHERE u.org_id = $23::uuid))
 `
 
 type UpdateFormScopedParams struct {
@@ -490,6 +502,7 @@ type UpdateFormScopedParams struct {
 	Captcha             bool
 	RefuseLinks         bool
 	NotificationLang    string
+	HoneypotField       *string
 	ID                  uuid.UUID
 	ViewerID            uuid.UUID
 	AdminOrgID          pgtype.UUID
@@ -518,6 +531,7 @@ func (q *Queries) UpdateFormScoped(ctx context.Context, arg UpdateFormScopedPara
 		arg.Captcha,
 		arg.RefuseLinks,
 		arg.NotificationLang,
+		arg.HoneypotField,
 		arg.ID,
 		arg.ViewerID,
 		arg.AdminOrgID,

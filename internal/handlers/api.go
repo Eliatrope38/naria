@@ -15,6 +15,7 @@ import (
 	"gitlab.com/detag_inno/naria/internal/auth"
 	"gitlab.com/detag_inno/naria/internal/database"
 	"gitlab.com/detag_inno/naria/internal/i18n"
+	"gitlab.com/detag_inno/naria/internal/submission"
 	"gitlab.com/detag_inno/naria/internal/web"
 	"gitlab.com/detag_inno/naria/ui"
 )
@@ -118,6 +119,7 @@ type apiForm struct {
 	RefuseLinks         bool   `json:"refuse_links"`
 	NotificationLang    string `json:"notification_lang"`
 	RedirectURL         string `json:"redirect_url"`
+	HoneypotField       string `json:"honeypot_field"`
 }
 
 func (a *App) submitURL() string {
@@ -132,6 +134,7 @@ func (a *App) apiForm(f database.Form) apiForm {
 		StoreSubmissions: f.StoreSubmissions, RetentionDays: f.RetentionDays,
 		AcceptAttachments: f.AcceptAttachments, Captcha: f.Captcha, RefuseLinks: f.RefuseLinks,
 		NotificationLang: f.NotificationLang, RedirectURL: deref(f.RedirectUrl),
+		HoneypotField: deref(f.HoneypotField),
 	}
 }
 
@@ -169,6 +172,7 @@ type apiFormInput struct {
 	RefuseLinks         bool   `json:"refuse_links"`
 	NotificationLang    string `json:"notification_lang"`
 	RedirectURL         string `json:"redirect_url"`
+	HoneypotField       string `json:"honeypot_field"`
 }
 
 type apiCreatedForm struct {
@@ -201,7 +205,7 @@ func (a *App) APICreateForm(w http.ResponseWriter, r *http.Request) {
 	in := apiFormInput{
 		NotifyEmail: a.Mailer != nil, EmailIncludeContent: true,
 		StoreSubmissions: true, RetentionDays: defaultRetentionDays,
-		NotificationLang: string(i18n.DefaultLocale),
+		NotificationLang: string(i18n.DefaultLocale), HoneypotField: submission.NewHoneypotName(),
 	}
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -222,7 +226,7 @@ func (a *App) APICreateForm(w http.ResponseWriter, r *http.Request) {
 		NotifyEmail: in.NotifyEmail, Recipients: tok.UserEmail,
 		IncludeContent: in.EmailIncludeContent, Store: in.StoreSubmissions,
 		RetentionDays: strconv.Itoa(in.RetentionDays), Attachments: in.AcceptAttachments, Captcha: in.Captcha,
-		RefuseLinks: in.RefuseLinks,
+		RefuseLinks: in.RefuseLinks, HoneypotField: strings.TrimSpace(in.HoneypotField),
 		RedirectURL: strings.TrimSpace(in.RedirectURL), NotificationLang: in.NotificationLang,
 	}, tok.SiteDomains)
 	if errMsg != "" {
@@ -247,6 +251,6 @@ func (a *App) APICreateForm(w http.ResponseWriter, r *http.Request) {
 	}
 	writeAPIJSON(w, http.StatusCreated, apiCreatedForm{
 		apiForm: a.apiForm(form),
-		HTML:    ui.HTMLSnippet(r.Context(), a.submitURL(), form.AccessKey, form.AcceptAttachments, form.Captcha),
+		HTML:    ui.HTMLSnippet(r.Context(), a.submitURL(), form.AccessKey, form.HoneypotField, form.AcceptAttachments, form.Captcha),
 	})
 }

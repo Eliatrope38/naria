@@ -1,8 +1,9 @@
 -- name: CreateForm :one
 INSERT INTO forms (site_id, name, access_key, notify_email, recipients, email_include_content, store_submissions, retention_days, redirect_url,
                    slack_webhook_url, teams_webhook_url, discord_webhook_url, kchat_webhook_url, chat_include_content,
-                   telegram_bot_token, telegram_chat_id, accept_attachments, captcha, refuse_links, notification_lang)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                   telegram_bot_token, telegram_chat_id, accept_attachments, captcha, refuse_links, notification_lang,
+                   honeypot_field)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 RETURNING *;
 
 -- Même règle de cloisonnement que sites.sql, appliquée au site du formulaire.
@@ -46,7 +47,8 @@ SET name = sqlc.arg('name'), active = sqlc.arg('active'), notify_email = sqlc.ar
     chat_include_content = sqlc.arg('chat_include_content'),
     telegram_bot_token = sqlc.narg('telegram_bot_token'), telegram_chat_id = sqlc.narg('telegram_chat_id'),
     accept_attachments = sqlc.arg('accept_attachments'), captcha = sqlc.arg('captcha'),
-    refuse_links = sqlc.arg('refuse_links'), notification_lang = sqlc.arg('notification_lang'), updated_at = now()
+    refuse_links = sqlc.arg('refuse_links'), notification_lang = sqlc.arg('notification_lang'),
+    honeypot_field = sqlc.narg('honeypot_field'), updated_at = now()
 WHERE forms.id = sqlc.arg('id')
   AND forms.site_id IN (SELECT s.id FROM sites s
                   WHERE s.owner_id = sqlc.arg('viewer_id')
